@@ -18,6 +18,7 @@ import {
   Search,
   Shield,
   SlidersHorizontal,
+  Sparkles,
   Star,
   X,
 } from "lucide-react";
@@ -67,6 +68,30 @@ function getInitials(name: string): string {
   if (parts.length === 0) return "DR";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+function formatVehicleTag(
+  model: string | null,
+  vehicleType: "TWO_WHEELER" | "CAR" | "NONE"
+): string {
+  if (!model || !model.trim()) {
+    return vehicleType === "TWO_WHEELER" ? "Two-wheeler" : "Car";
+  }
+  const colorMatch = /\(([^)]+)\)/.exec(model);
+  const baseRaw = model
+    .replace(/\([^)]*\)/g, "")
+    .replace(
+      /^(Maruti Suzuki|Maruti|Honda|Hyundai|Tata|Mahindra|Toyota|Kia|Bajaj|TVS|Suzuki|Royal Enfield)\s+/i,
+      ""
+    )
+    .trim();
+  const base = baseRaw || model.trim();
+  const color = colorMatch?.[1]?.trim();
+
+  if (color && `${base} · ${color}`.length <= 18) {
+    return `${base} · ${color}`;
+  }
+  return base.length > 18 ? base.slice(0, 18).trim() : base;
 }
 
 function parseLocParam(
@@ -247,7 +272,7 @@ function FindRideContent() {
         )}
       </div>
 
-      {/* Compact Single-Row Transit Search Bar + Filters Popover */}
+      {/* Compact Single-Row Search Bar + Collapsible Filters Popover */}
       <form
         onSubmit={handleSubmit}
         className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2.5 shadow-xs"
@@ -287,7 +312,6 @@ function FindRideContent() {
             />
           </div>
 
-          {/* Compact When Input */}
           <div className="lg:w-48 shrink-0">
             <input
               type="datetime-local"
@@ -299,7 +323,6 @@ function FindRideContent() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Collapsible Filters Popover */}
             <div ref={filterRef} className="relative">
               <button
                 type="button"
@@ -407,13 +430,13 @@ function FindRideContent() {
         </div>
       )}
 
-      {/* Results — Boarding-Pass Ride Cards */}
+      {/* Results — Tactile Transit Tickets */}
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2">
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-48 animate-pulse rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]"
+              className="h-52 animate-pulse rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]"
             />
           ))}
         </div>
@@ -432,9 +455,13 @@ function FindRideContent() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2">
           {matches.map(({ ride, pickupDistKm, timeDeltaMin }, idx) => {
             const seatsTaken = Math.max(0, ride.seatsTotal - ride.seatsAvailable);
+            const autoSavings = Math.max(
+              0,
+              Math.round(ride.distanceKm * 15) - ride.costPerSeatInr
+            );
             const proximityBadge = hasRouteFilter
               ? pickupDistKm !== null && pickupDistKm <= 0.6
                 ? "Direct route"
@@ -451,13 +478,12 @@ function FindRideContent() {
               <Link
                 key={ride.id}
                 href={`/rides/${ride.id}`}
-                style={{ animationDelay: `${idx * 45}ms` }}
-                className="animate-fade-up card-lift group rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--accent-signal)]/60 overflow-hidden flex flex-col justify-between"
+                style={{ animationDelay: `${idx * 50}ms` }}
+                className="card-enter card-lift group relative rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--accent-signal)]/60 flex flex-col justify-between overflow-hidden"
               >
-                {/* Top Boarding-Pass Section */}
+                {/* Top Route Block */}
                 <div className="p-5 flex items-start justify-between gap-4">
-                  {/* Left: Vertical Dotted Transit Spine */}
-                  <div className="min-w-0 flex-1 space-y-2">
+                  <div className="min-w-0 flex-1 space-y-2.5">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
@@ -468,6 +494,12 @@ function FindRideContent() {
                       >
                         {proximityBadge}
                       </span>
+                      {autoSavings > 20 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/12 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                          <Sparkles className="h-3 w-3" />
+                          Save ~₹{autoSavings} vs Auto
+                        </span>
+                      )}
                       {ride.womenOnly && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/12 px-2.5 py-0.5 text-[11px] font-bold text-rose-600 dark:text-rose-300">
                           <Shield className="h-3 w-3" />
@@ -476,9 +508,13 @@ function FindRideContent() {
                       )}
                     </div>
 
-                    {/* Vertical Transit Line */}
-                    <div className="relative pl-5 space-y-2 pt-1">
+                    {/* Vertical Dotted Route Spine with Gliding Orange Dot on Hover */}
+                    <div className="relative pl-5 space-y-2 pt-0.5">
                       <span className="absolute left-[5px] top-2.5 bottom-2.5 border-l-2 border-dotted border-[var(--border-subtle)]" />
+                      <span
+                        aria-hidden="true"
+                        className="route-glide-dot pointer-events-none absolute left-[2px] top-2 h-2 w-2 rounded-full bg-[var(--accent-signal)] shadow-[0_0_8px_#FF5A26]"
+                      />
 
                       <div className="relative">
                         <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-[var(--accent-signal)] ring-4 ring-[var(--bg-surface)]" />
@@ -500,7 +536,7 @@ function FindRideContent() {
                     </div>
                   </div>
 
-                  {/* Right: Mono Fare + Tactile Seat Dots + Departure Time */}
+                  {/* Right Fare + Seat Dots + Time */}
                   <div className="shrink-0 text-right space-y-2.5">
                     <div>
                       <p className="font-mono text-xl font-bold tracking-tight text-[var(--text-ink)]">
@@ -511,7 +547,6 @@ function FindRideContent() {
                       </p>
                     </div>
 
-                    {/* Tactile Seat Dots (filled = open, hollow = booked) */}
                     <div
                       className="flex items-center justify-end gap-1.5"
                       title={`${ride.seatsAvailable} of ${ride.seatsTotal} seats available`}
@@ -546,8 +581,21 @@ function FindRideContent() {
                   </div>
                 </div>
 
-                {/* Perforated Ticket Footer: Driver Info */}
-                <div className="flex items-center justify-between gap-3 border-t border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)]/55 px-5 py-3 text-xs">
+                {/* Ticket Tear-Line with Semicircular Left & Right Cutouts */}
+                <div className="relative flex items-center">
+                  <span
+                    aria-hidden="true"
+                    className="absolute -left-3 h-6 w-6 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-canvas)] z-10"
+                  />
+                  <div className="w-full border-t border-dashed border-[var(--border-subtle)]" />
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-3 h-6 w-6 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-canvas)] z-10"
+                  />
+                </div>
+
+                {/* Ticket Footer: Driver Info + Clean Vehicle Pill */}
+                <div className="flex items-center justify-between gap-3 bg-[var(--bg-subtle)]/55 px-5 py-3 text-xs">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--text-ink)] text-[10px] font-bold text-[var(--bg-surface)]">
                       {getInitials(ride.driver.fullName)}
@@ -570,14 +618,12 @@ function FindRideContent() {
                     </div>
                   </div>
 
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-muted)] shrink-0 max-w-[155px] truncate">
-                    <Car className="h-3 w-3 shrink-0 text-[var(--text-ink)]" />
-                    <span className="truncate">
-                      {ride.driver.vehicleModel ??
-                        (ride.driver.vehicleType === "TWO_WHEELER"
-                          ? "Two-wheeler"
-                          : "Car")}
-                    </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-ink)] shrink-0 whitespace-nowrap">
+                    <Car className="h-3 w-3 shrink-0 text-[var(--accent-signal)]" />
+                    {formatVehicleTag(
+                      ride.driver.vehicleModel,
+                      ride.driver.vehicleType
+                    )}
                   </span>
                 </div>
               </Link>

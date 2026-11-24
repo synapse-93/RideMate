@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -36,6 +37,7 @@ import {
   LocationAutocomplete,
   type SelectedLocation,
 } from "@/components/map/LocationAutocomplete";
+import { ConfettiBurst } from "@/components/ui/ConfettiBurst";
 import { estimateFuelSplit, formatInr, type CostVehicleType } from "@/lib/cost";
 import {
   interpolateAlongPolyline,
@@ -126,6 +128,7 @@ interface ChatMessage {
   receiverId: string;
   sender: { id: string; fullName: string };
   receiver: { id: string; fullName: string };
+  optimistic?: boolean;
 }
 
 interface SessionUser {
@@ -139,6 +142,27 @@ function shortPlace(label: string): string {
   return label.split(",")[0]?.trim() || label;
 }
 
+function formatFallbackPin(coords: LatLng): string {
+  const latDir = coords.lat >= 0 ? "N" : "S";
+  const lngDir = coords.lng >= 0 ? "E" : "W";
+  return `Custom Pin (${Math.abs(coords.lat).toFixed(2)}°${latDir}, ${Math.abs(
+    coords.lng
+  ).toFixed(2)}°${lngDir})`;
+}
+
+function formatRelativeTime(iso: string): string {
+  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (diffSec < 45) return "just now";
+  const mins = Math.floor(diffSec / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
 export default function RideDetailPage() {
   const params = useParams<{ id: string }>();
   const rideId = params.id;
@@ -148,6 +172,7 @@ export default function RideDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const [pickup, setPickup] = useState<SelectedLocation | null>(null);
   const [requesting, setRequesting] = useState(false);
@@ -158,7 +183,9 @@ export default function RideDetailPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatTargetId, setChatTargetId] = useState<string>("");
+  const [chatError, setChatError] = useState<string | null>(null);
   const [sendingChat, setSendingChat] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   const [reviewTargetId, setReviewTargetId] = useState<string>("");
   const [reviewRating, setReviewRating] = useState(5);
@@ -224,7 +251,7 @@ export default function RideDetailPage() {
     [ride, me]
   );
 
-  const canParticipateInChat = Boolean(
+  const isSosParticipant = Boolean(
     me &&
       ride &&
       (isDriver ||
@@ -262,8 +289,9 @@ export default function RideDetailPage() {
     return interpolateAlongPolyline(polyline, simProgress);
   }, [ride, polyline, simProgress]);
 
+  // 3-second chat polling for ANY logged-in user viewing an accessible ride (pre-booking & post-booking)
   useEffect(() => {
-    if (!canParticipateInChat) return;
+    if (!me || !ride) return;
     let cancelled = false;
     async function pollMessages(): Promise<void> {
       try {
@@ -275,30 +303,71 @@ export default function RideDetailPage() {
           setMessages(data.messages ?? []);
         }
       } catch {
-        // Ignore transient errors
+        // Ignore transient poll errors
       }
     }
     void pollMessages();
     const interval = setInterval(() => {
       void pollMessages();
-    }, 4000);
+    }, 3000);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [canParticipateInChat, rideId]);
+  }, [me, ride, rideId]);
 
-  const activeRiders = useMemo(
-    () =>
-      ride?.requests.filter(
-        (r) => r.status === "PENDING" || r.status === "ACCEPTED"
-      ) ?? [],
-    [ride]
-  );
+  // Auto-scroll inside chat box when message count grows
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages.length]);
 
-  const effectiveChatTargetId =
-    chatTargetId ||
-    (isDriver ? activeRiders[0]?.passengerId ?? "" : ride?.driverId ?? "");
+  // Build driver's reply threads from BOTH inbound message senders AND booking requests
+  const driverThreads = useMemo(() => {
+    if (!ride || !isDriver) return [];
+    const map = new Map<string, { id: string; fullName: string }>();
+
+    // Prefer most recent inbound chat senders first
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.senderId !== ride.driverId && !map.has(m.senderId)) {
+        map.set(m.senderId, { id: m.senderId, fullName: m.sender.fullName });
+      }
+      if (m.receiverId !== ride.driverId && !map.has(m.receiverId)) {
+        map.set(m.receiverId, { id: m.receiverId, fullName: m.receiver.fullName });
+      }
+    }
+    // Also include active booking requesters
+    for (const r of ride.requests) {
+      if (
+        (r.status === "PENDING" || r.status === "ACCEPTED") &&
+        !map.has(r.passengerId)
+      ) {
+        map.set(r.passengerId, {
+          id: r.passengerId,
+          fullName: r.passenger.fullName,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [ride, isDriver, messages]);
+
+  const effectiveChatTargetId = isDriver
+    ? chatTargetId && driverThreads.some((t) => t.id === chatTargetId)
+      ? chatTargetId
+      : driverThreads[0]?.id ?? ""
+    : ride?.driverId ?? "";
+
+  const visibleMessages = useMemo(() => {
+    if (!isDriver || !effectiveChatTargetId) return messages;
+    return messages.filter(
+      (m) =>
+        m.senderId === effectiveChatTargetId ||
+        m.receiverId === effectiveChatTargetId
+    );
+  }, [isDriver, effectiveChatTargetId, messages]);
 
   const acceptedCoRiders = useMemo(() => {
     if (!ride || !me) return [];
@@ -322,6 +391,31 @@ export default function RideDetailPage() {
 
   const effectiveReviewTargetId =
     reviewTargetId || acceptedCoRiders[0]?.id || "";
+
+  async function handlePickupMapClick(coords: LatLng): Promise<void> {
+    const fallbackLabel = formatFallbackPin(coords);
+    setPickup({ label: fallbackLabel, lat: coords.lat, lng: coords.lng });
+    try {
+      const res = await fetch(
+        `/api/geocode?lat=${encodeURIComponent(
+          String(coords.lat)
+        )}&lng=${encodeURIComponent(String(coords.lng))}`,
+        { cache: "no-store" }
+      );
+      if (res.ok) {
+        const data = (await res.json()) as { label?: string };
+        if (typeof data.label === "string" && data.label.trim()) {
+          setPickup({
+            label: data.label.trim(),
+            lat: coords.lat,
+            lng: coords.lng,
+          });
+        }
+      }
+    } catch {
+      // Keep clean fallback
+    }
+  }
 
   async function handleStatusTransition(
     nextStatus: RideDetail["status"]
@@ -362,7 +456,9 @@ export default function RideDetailPage() {
         setActionNotice(data.error ?? "Could not request seat.");
         return;
       }
-      setActionNotice("Seat request sent to the driver.");
+      setActionNotice("Seat request sent to the driver!");
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 1200);
       await reloadRide();
     } finally {
       setRequesting(false);
@@ -389,8 +485,32 @@ export default function RideDetailPage() {
 
   async function handleSendChat(e: FormEvent): Promise<void> {
     e.preventDefault();
-    if (!chatInput.trim() || !effectiveChatTargetId) return;
+    const trimmed = chatInput.trim();
+    if (!trimmed || !me || !ride || !effectiveChatTargetId) return;
+
+    setChatError(null);
     setSendingChat(true);
+
+    const optimisticId = `optimistic-${Date.now()}`;
+    const receiverName = isDriver
+      ? driverThreads.find((t) => t.id === effectiveChatTargetId)?.fullName ??
+        "Student"
+      : ride.driver.fullName;
+
+    const optimisticMsg: ChatMessage = {
+      id: optimisticId,
+      body: trimmed,
+      createdAt: new Date().toISOString(),
+      senderId: me.id,
+      receiverId: effectiveChatTargetId,
+      sender: { id: me.id, fullName: me.fullName },
+      receiver: { id: effectiveChatTargetId, fullName: receiverName },
+      optimistic: true,
+    };
+
+    setMessages((prev) => [...prev, optimisticMsg]);
+    setChatInput("");
+
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
@@ -398,14 +518,27 @@ export default function RideDetailPage() {
         body: JSON.stringify({
           rideId,
           receiverId: effectiveChatTargetId,
-          body: chatInput.trim(),
+          body: trimmed,
         }),
       });
-      if (res.ok) {
-        const data = (await res.json()) as { message: ChatMessage };
-        setMessages((prev) => [...prev, data.message]);
-        setChatInput("");
+      const data = (await res.json()) as {
+        message?: ChatMessage;
+        error?: string;
+      };
+      if (!res.ok || !data.message) {
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        setChatInput(trimmed);
+        setChatError(data.error ?? "Could not send message.");
+        return;
       }
+      const saved = data.message;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === optimisticId ? saved : m))
+      );
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      setChatInput(trimmed);
+      setChatError("Network error — try again.");
     } finally {
       setSendingChat(false);
     }
@@ -538,7 +671,9 @@ export default function RideDetailPage() {
   const activeSosEvents = ride.sosEvents.filter((s) => !s.resolved);
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-6 card-enter">
+      <ConfettiBurst active={showConfetti} />
+
       {/* Active SOS Alert Banner (Demo Simulation) */}
       {activeSosEvents.map((sos) => (
         <div
@@ -701,7 +836,7 @@ export default function RideDetailPage() {
         )}
       </div>
 
-      {/* Map + Tracking + Chat + Right Sidebar */}
+      {/* Main Grid: Map + Always-Accessible Chat | Right Sidebar */}
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-7 space-y-4">
           {ride.status === "IN_PROGRESS" && (
@@ -777,19 +912,16 @@ export default function RideDetailPage() {
             polyline={polyline}
             onMapClick={
               !isDriver && !myRequest
-                ? (coords) =>
-                    setPickup({
-                      label: `Custom pickup (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`,
-                      lat: coords.lat,
-                      lng: coords.lng,
-                    })
+                ? (coords) => {
+                    void handlePickupMapClick(coords);
+                  }
                 : undefined
             }
             heightClassName="h-80 sm:h-96"
           />
 
           {/* Safety & SOS Strip */}
-          {canParticipateInChat && ride.status !== "CANCELLED" && (
+          {isSosParticipant && ride.status !== "CANCELLED" && (
             <div className="rounded-2xl border border-rose-500/30 bg-[var(--bg-surface)] p-4 flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-0.5">
                 <p className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
@@ -815,88 +947,139 @@ export default function RideDetailPage() {
             </div>
           )}
 
-          {/* In-App Chat */}
-          {canParticipateInChat && (
-            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="font-bold text-sm flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-[var(--accent-signal)]" />
-                  Ride Chat
-                </h2>
-                {isDriver && activeRiders.length > 0 && (
-                  <select
-                    value={effectiveChatTargetId}
-                    onChange={(e) => setChatTargetId(e.target.value)}
-                    className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] px-2.5 py-1 text-xs font-medium"
-                  >
-                    {activeRiders.map((r) => (
-                      <option key={r.passengerId} value={r.passengerId}>
-                        To: {r.passenger.fullName}
-                      </option>
-                    ))}
-                  </select>
+          {/* Always-Accessible Ride Chat (Pre-Booking Questions + Driver Replies + 3s Polling) */}
+          <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-[var(--accent-signal)]" />
+                <h2 className="font-bold text-sm">Ride Chat</h2>
+                {me && (
+                  <span className="rounded-full bg-[var(--verified-green)]/12 px-2 py-0.5 text-[10px] font-bold text-[var(--verified-green)]">
+                    Live
+                  </span>
                 )}
               </div>
 
-              <div className="h-60 overflow-y-auto space-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/50 p-3">
-                {messages.length === 0 ? (
-                  <p className="text-center text-xs text-[var(--text-muted)] py-16">
-                    No messages yet. Coordinate pickup gate or timing here.
-                  </p>
-                ) : (
-                  messages.map((msg) => {
-                    const isMine = msg.senderId === me?.id;
+              {isDriver && driverThreads.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {driverThreads.map((thread) => {
+                    const active = effectiveChatTargetId === thread.id;
                     return (
-                      <div
-                        key={msg.id}
-                        className={`flex flex-col ${
-                          isMine ? "items-end" : "items-start"
+                      <button
+                        key={thread.id}
+                        type="button"
+                        onClick={() => setChatTargetId(thread.id)}
+                        className={`btn-press rounded-full px-3 py-1 text-[11px] font-bold border ${
+                          active
+                            ? "border-[var(--accent-signal)] bg-[var(--accent-signal)] text-white"
+                            : "border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-ink)]"
                         }`}
                       >
+                        {thread.fullName.split(" ")[0]}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {!me ? (
+              <div className="rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)]/50 p-6 text-center space-y-2">
+                <p className="text-xs text-[var(--text-muted)]">
+                  Want to ask {ride.driver.fullName.split(" ")[0]} about pickup
+                  timing or luggage space?
+                </p>
+                <Link
+                  href={`/login?next=/rides/${ride.id}`}
+                  className="btn-press inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-signal)] px-4 py-2 text-xs font-bold text-white"
+                >
+                  Sign in to message driver
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div
+                  ref={chatScrollRef}
+                  className="h-64 overflow-y-auto space-y-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/45 p-3.5"
+                >
+                  {visibleMessages.length === 0 ? (
+                    <div className="flex h-full items-center justify-center text-center px-4">
+                      <p className="text-xs text-[var(--text-muted)] max-w-xs">
+                        {isDriver
+                          ? "No messages yet. Students can message you here before or after booking."
+                          : `Ask ${ride.driver.fullName.split(" ")[0]} a quick question about pickup stop or timing before or after booking.`}
+                      </p>
+                    </div>
+                  ) : (
+                    visibleMessages.map((msg) => {
+                      const isMine = msg.senderId === me.id;
+                      return (
                         <div
-                          className={`max-w-[82%] rounded-2xl px-3.5 py-2 text-xs ${
-                            isMine
-                              ? "bg-[var(--accent-signal)] text-white"
-                              : "bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-ink)]"
+                          key={msg.id}
+                          className={`flex flex-col ${
+                            isMine ? "items-end" : "items-start"
                           }`}
                         >
-                          <p className="text-[10px] opacity-75 font-bold mb-0.5">
-                            {msg.sender.fullName}
-                          </p>
-                          <p>{msg.body}</p>
+                          <div
+                            className={`max-w-[82%] rounded-2xl px-3.5 py-2 text-xs shadow-2xs ${
+                              isMine
+                                ? "rounded-br-sm bg-[var(--accent-signal)] text-white"
+                                : "rounded-bl-sm bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-ink)]"
+                            } ${msg.optimistic ? "opacity-75" : ""}`}
+                          >
+                            <div className="flex items-center justify-between gap-3 mb-0.5">
+                              <span className="text-[10px] font-bold opacity-80">
+                                {isMine ? "You" : msg.sender.fullName}
+                              </span>
+                              <span className="font-mono text-[10px] opacity-70">
+                                {formatRelativeTime(msg.createdAt)}
+                              </span>
+                            </div>
+                            <p className="leading-relaxed break-words">
+                              {msg.body}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+                      );
+                    })
+                  )}
+                </div>
 
-              <form onSubmit={handleSendChat} className="flex gap-2">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder={
-                    effectiveChatTargetId
-                      ? "Message your co-rider…"
-                      : "Chat unlocks once a rider requests a seat…"
-                  }
-                  disabled={!effectiveChatTargetId}
-                  className="flex-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-3.5 py-2 text-sm outline-none focus:border-[var(--accent-signal)] focus:bg-[var(--bg-surface)] disabled:opacity-50"
-                />
-                <button
-                  type="submit"
-                  disabled={
-                    sendingChat || !effectiveChatTargetId || !chatInput.trim()
-                  }
-                  className="btn-press inline-flex items-center gap-1.5 rounded-xl bg-[var(--accent-signal)] px-4 py-2 text-xs font-bold text-white hover:bg-[var(--accent-signal-hover)] disabled:opacity-50"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  Send
-                </button>
-              </form>
-            </section>
-          )}
+                {chatError && (
+                  <p className="text-xs text-rose-600 dark:text-rose-400">
+                    {chatError}
+                  </p>
+                )}
+
+                <form onSubmit={handleSendChat} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder={
+                      effectiveChatTargetId
+                        ? isDriver
+                          ? "Reply to student…"
+                          : `Message ${ride.driver.fullName.split(" ")[0]}…`
+                        : "Waiting for a student message or booking…"
+                    }
+                    disabled={!effectiveChatTargetId}
+                    className="flex-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent-signal)] focus:bg-[var(--bg-surface)] disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={
+                      sendingChat || !effectiveChatTargetId || !chatInput.trim()
+                    }
+                    className="btn-press inline-flex items-center gap-1.5 rounded-xl bg-[var(--accent-signal)] px-4 py-2.5 text-xs font-bold text-white hover:bg-[var(--accent-signal-hover)] disabled:opacity-50"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    Send
+                  </button>
+                </form>
+              </>
+            )}
+          </section>
         </div>
 
         {/* Right Sidebar */}
@@ -945,7 +1128,7 @@ export default function RideDetailPage() {
               </p>
             ) : (
               <p className="text-xs text-[var(--text-muted)]">
-                Phone private — coordinate via in-app Ride Chat.
+                Phone private — coordinate via Ride Chat.
               </p>
             )}
           </section>
@@ -954,7 +1137,7 @@ export default function RideDetailPage() {
           {reportOpen && me && (
             <form
               onSubmit={handleSubmitReport}
-              className="animate-fade-up rounded-2xl border border-rose-500/35 bg-rose-500/[0.06] p-5 space-y-3"
+              className="card-enter rounded-2xl border border-rose-500/35 bg-rose-500/[0.06] p-5 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold uppercase text-rose-700 dark:text-rose-300">

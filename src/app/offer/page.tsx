@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   AlertCircle,
-  ArrowLeftRight,
+  ArrowUpDown,
   Clock,
   Fuel,
   Loader2,
@@ -17,6 +17,7 @@ import {
   LocationAutocomplete,
   type SelectedLocation,
 } from "@/components/map/LocationAutocomplete";
+import { ConfettiBurst } from "@/components/ui/ConfettiBurst";
 import { estimateFuelSplit, formatInr, type CostVehicleType } from "@/lib/cost";
 import type { LatLng } from "@/lib/geo";
 
@@ -42,6 +43,14 @@ function vehicleDisplayLabel(type: CostVehicleType | undefined): string {
   return "";
 }
 
+function formatFallbackPin(coords: LatLng): string {
+  const latDir = coords.lat >= 0 ? "N" : "S";
+  const lngDir = coords.lng >= 0 ? "E" : "W";
+  return `Custom Pin (${Math.abs(coords.lat).toFixed(2)}°${latDir}, ${Math.abs(
+    coords.lng
+  ).toFixed(2)}°${lngDir})`;
+}
+
 export default function OfferRidePage() {
   const router = useRouter();
   const [me, setMe] = useState<MeUser | null>(null);
@@ -61,6 +70,7 @@ export default function OfferRidePage() {
   const [womenOnly, setWomenOnly] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -144,14 +154,61 @@ export default function OfferRidePage() {
     setSwappedCount((c) => c + 1);
   }
 
-  function handleMapClick(coords: LatLng): void {
-    const label = `Pinned (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`;
-    if (pickMode === "ORIGIN") {
-      setOrigin({ label, lat: coords.lat, lng: coords.lng });
+  async function resolveAndSetPin(
+    target: "ORIGIN" | "DEST",
+    coords: LatLng
+  ): Promise<void> {
+    const fallbackLabel = formatFallbackPin(coords);
+    const optimistic: SelectedLocation = {
+      label: fallbackLabel,
+      lat: coords.lat,
+      lng: coords.lng,
+    };
+
+    if (target === "ORIGIN") {
+      setOrigin(optimistic);
       setPickMode("DEST");
     } else {
-      setDest({ label, lat: coords.lat, lng: coords.lng });
+      setDest(optimistic);
     }
+
+    try {
+      const res = await fetch(
+        `/api/geocode?lat=${encodeURIComponent(
+          String(coords.lat)
+        )}&lng=${encodeURIComponent(String(coords.lng))}`,
+        { cache: "no-store" }
+      );
+      if (res.ok) {
+        const data = (await res.json()) as { label?: string };
+        if (typeof data.label === "string" && data.label.trim().length > 0) {
+          const resolved: SelectedLocation = {
+            label: data.label.trim(),
+            lat: coords.lat,
+            lng: coords.lng,
+          };
+          if (target === "ORIGIN") {
+            setOrigin((cur) =>
+              cur && cur.lat === coords.lat && cur.lng === coords.lng
+                ? resolved
+                : cur
+            );
+          } else {
+            setDest((cur) =>
+              cur && cur.lat === coords.lat && cur.lng === coords.lng
+                ? resolved
+                : cur
+            );
+          }
+        }
+      }
+    } catch {
+      // Keep clean Custom Pin fallback
+    }
+  }
+
+  function handleMapClick(coords: LatLng): void {
+    void resolveAndSetPin(pickMode, coords);
   }
 
   async function handleSubmit(e: FormEvent): Promise<void> {
@@ -189,7 +246,12 @@ export default function OfferRidePage() {
         setError(data.error ?? "Failed to publish ride.");
         return;
       }
-      router.push(`/rides/${data.ride.id}`);
+      setShowConfetti(true);
+      const rideId = data.ride.id;
+      setTimeout(() => {
+        setShowConfetti(false);
+        router.push(`/rides/${rideId}`);
+      }, 650);
     } catch {
       setError("Network error while publishing ride.");
     } finally {
@@ -202,6 +264,8 @@ export default function OfferRidePage() {
 
   return (
     <div className="space-y-5">
+      <ConfettiBurst active={showConfetti} />
+
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[-0.03em]">
           Offer a Ride
@@ -224,43 +288,44 @@ export default function OfferRidePage() {
           onSubmit={handleSubmit}
           className="lg:col-span-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-4 shadow-xs"
         >
-          {/* Origin + Swap + Destination */}
-          <div className="relative space-y-2.5">
-            <LocationAutocomplete
-              label="Start"
-              placeholder="Where are you leaving from?"
-              value={origin}
-              onChange={setOrigin}
-              compact
-              dotColor="orange"
-            />
+          {/* Connected Start / Drop-off Input Group with Integrated Right-Edge Swap */}
+          <div className="space-y-1.5">
+            <span className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Route Stops
+            </span>
+            <div className="relative rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/45 p-2.5 pr-12 space-y-2">
+              <LocationAutocomplete
+                placeholder="Start location…"
+                value={origin}
+                onChange={setOrigin}
+                compact
+                dotColor="orange"
+              />
+              <LocationAutocomplete
+                placeholder="Drop-off campus or stop…"
+                value={dest}
+                onChange={setDest}
+                compact
+                dotColor="ink"
+              />
 
-            <div className="flex justify-end -my-1 pr-1">
+              {/* Integrated Right-Edge Swap Button */}
               <button
                 type="button"
                 onClick={handleSwap}
                 aria-label="Swap start and drop-off"
-                className="btn-press inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-subtle)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-muted)] hover:border-[var(--accent-signal)] hover:text-[var(--accent-signal)]"
+                title="Swap stops"
+                className="btn-press absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-ink)] shadow-xs hover:border-[var(--accent-signal)] hover:text-[var(--accent-signal)]"
               >
-                <ArrowLeftRight
-                  className="h-3 w-3 transition-transform duration-300 ease-out"
+                <ArrowUpDown
+                  className="h-3.5 w-3.5 transition-transform duration-300 ease-out"
                   style={{ transform: `rotate(${swappedCount * 180}deg)` }}
                 />
-                Swap
               </button>
             </div>
-
-            <LocationAutocomplete
-              label="Drop-off"
-              placeholder="Where are you heading?"
-              value={dest}
-              onChange={setDest}
-              compact
-              dotColor="ink"
-            />
           </div>
 
-          {/* Departure Time + Seat Stepper Pills */}
+          {/* Departure Time + Spring-Animated Seat Stepper Pills */}
           <div className="grid gap-3.5 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
@@ -284,12 +349,12 @@ export default function OfferRidePage() {
                   const selected = seatsTotal === count;
                   return (
                     <button
-                      key={count}
+                      key={selected ? `${count}-active` : count}
                       type="button"
                       onClick={() => setSeatsTotal(count)}
                       className={`btn-press rounded-xl py-2 font-mono text-sm font-bold border ${
                         selected
-                          ? "border-[var(--accent-signal)] bg-[var(--accent-signal)] text-white shadow-xs"
+                          ? "pop-spring border-[var(--accent-signal)] bg-[var(--accent-signal)] text-white shadow-xs"
                           : "border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-ink)] hover:border-[var(--accent-signal)]/50"
                       }`}
                     >
@@ -301,7 +366,7 @@ export default function OfferRidePage() {
             </div>
           </div>
 
-          {/* Fair Fuel Split Card (clean prompt before route, animated reveal once computed) */}
+          {/* Fair Fuel Split Box */}
           {!routeReady ? (
             <div className="rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-4 py-3.5 flex items-center gap-2.5 text-xs text-[var(--text-muted)]">
               {routing ? (
@@ -317,7 +382,7 @@ export default function OfferRidePage() {
               )}
             </div>
           ) : (
-            <div className="animate-fade-up rounded-xl border border-[var(--accent-signal)]/30 bg-[var(--accent-signal)]/[0.06] p-4 space-y-2.5">
+            <div className="card-enter rounded-xl border border-[var(--accent-signal)]/30 bg-[var(--accent-signal)]/[0.06] p-4 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-[var(--text-ink)] flex items-center gap-1.5">
                   <Fuel className="h-3.5 w-3.5 text-[var(--accent-signal)]" />
@@ -393,58 +458,57 @@ export default function OfferRidePage() {
           </button>
         </form>
 
-        {/* Right: Sticky Styled Map + Floating Glass Pill Overlay */}
+        {/* Right: Sticky Styled Map + Non-Overlapping Top-Right Pin Switcher */}
         <div className="lg:col-span-7 lg:sticky lg:top-20 relative">
-          {/* Floating Glass Pill Overlay */}
-          <div className="pointer-events-none absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2">
-            <div className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-md p-1 shadow-md">
-              <button
-                type="button"
-                onClick={() => setPickMode("ORIGIN")}
-                className={`btn-press rounded-full px-3 py-1 text-[11px] font-bold ${
-                  pickMode === "ORIGIN"
-                    ? "bg-[var(--accent-signal)] text-white"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-ink)]"
-                }`}
-              >
-                Pin Start (A)
-              </button>
-              <button
-                type="button"
-                onClick={() => setPickMode("DEST")}
-                className={`btn-press rounded-full px-3 py-1 text-[11px] font-bold ${
-                  pickMode === "DEST"
-                    ? "bg-[var(--text-ink)] text-[var(--bg-surface)]"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-ink)]"
-                }`}
-              >
-                Pin Drop-off (B)
-              </button>
-            </div>
-
-            {(routing || routeReady) && (
-              <div className="pointer-events-auto inline-flex items-center gap-2.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]/92 backdrop-blur-md px-3.5 py-1.5 text-xs font-mono font-bold text-[var(--text-ink)] shadow-md">
-                {routing ? (
-                  <span className="inline-flex items-center gap-1.5 text-[var(--accent-signal)]">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Routing…
-                  </span>
-                ) : (
-                  <>
-                    <span className="inline-flex items-center gap-1">
-                      <Route className="h-3.5 w-3.5 text-[var(--accent-signal)]" />
-                      {activeDistanceKm} km
-                    </span>
-                    <span className="text-[var(--text-muted)]">·</span>
-                    <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-                      {activeDurationMin} min
-                    </span>
-                  </>
-                )}
-              </div>
-            )}
+          {/* Top-Right Floating Pin Switcher (never overlaps Leaflet top-left + / - zoom controls) */}
+          <div className="pointer-events-auto absolute top-3 right-3 z-20 inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]/92 backdrop-blur-md p-1 shadow-md">
+            <button
+              type="button"
+              onClick={() => setPickMode("ORIGIN")}
+              className={`btn-press rounded-full px-3 py-1 text-[11px] font-bold ${
+                pickMode === "ORIGIN"
+                  ? "bg-[var(--accent-signal)] text-white"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-ink)]"
+              }`}
+            >
+              Pin Start (A)
+            </button>
+            <button
+              type="button"
+              onClick={() => setPickMode("DEST")}
+              className={`btn-press rounded-full px-3 py-1 text-[11px] font-bold ${
+                pickMode === "DEST"
+                  ? "bg-[var(--text-ink)] text-[var(--bg-surface)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-ink)]"
+              }`}
+            >
+              Pin Drop-off (B)
+            </button>
           </div>
+
+          {/* Bottom-Left Floating Distance/Duration Pill */}
+          {(routing || routeReady) && (
+            <div className="pointer-events-auto absolute bottom-3 left-3 z-20 inline-flex items-center gap-2.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]/94 backdrop-blur-md px-3.5 py-1.5 text-xs font-mono font-bold text-[var(--text-ink)] shadow-md">
+              {routing ? (
+                <span className="inline-flex items-center gap-1.5 text-[var(--accent-signal)]">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Routing…
+                </span>
+              ) : (
+                <>
+                  <span className="inline-flex items-center gap-1">
+                    <Route className="h-3.5 w-3.5 text-[var(--accent-signal)]" />
+                    {activeDistanceKm} km
+                  </span>
+                  <span className="text-[var(--text-muted)]">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                    {activeDurationMin} min
+                  </span>
+                </>
+              )}
+            </div>
+          )}
 
           <RideMap
             origin={origin}

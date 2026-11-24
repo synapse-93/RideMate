@@ -9,6 +9,7 @@ import {
   PlusCircle,
   Route,
   Shield,
+  Sparkles,
   Ticket,
   Users,
 } from "lucide-react";
@@ -156,14 +157,14 @@ export default function TripsPage() {
         </Link>
       </div>
 
-      {/* Segmented Pill Tabs */}
+      {/* Tactile Segmented Pill Tabs */}
       <div className="inline-flex gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-1">
         <button
           type="button"
           onClick={() => setTab("REQUESTED")}
           className={`btn-press rounded-full px-4 py-1.5 text-xs font-bold ${
             tab === "REQUESTED"
-              ? "bg-[var(--text-ink)] text-[var(--bg-surface)]"
+              ? "pop-spring bg-[var(--text-ink)] text-[var(--bg-surface)]"
               : "text-[var(--text-muted)] hover:text-[var(--text-ink)]"
           }`}
         >
@@ -174,7 +175,7 @@ export default function TripsPage() {
           onClick={() => setTab("OFFERED")}
           className={`btn-press rounded-full px-4 py-1.5 text-xs font-bold ${
             tab === "OFFERED"
-              ? "bg-[var(--text-ink)] text-[var(--bg-surface)]"
+              ? "pop-spring bg-[var(--text-ink)] text-[var(--bg-surface)]"
               : "text-[var(--text-muted)] hover:text-[var(--text-ink)]"
           }`}
         >
@@ -198,69 +199,109 @@ export default function TripsPage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {requested.map((req, idx) => (
-              <Link
-                key={req.id}
-                href={`/rides/${req.ride.id}`}
-                style={{ animationDelay: `${idx * 45}ms` }}
-                className="animate-fade-up card-lift rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--accent-signal)]/60 overflow-hidden"
-              >
-                <div className="p-5 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap gap-1.5">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${statusBadgeClass(
-                          req.status
-                        )}`}
-                      >
-                        Seat: {req.status}
-                      </span>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${statusBadgeClass(
-                          req.ride.status
-                        )}`}
-                      >
-                        {req.ride.status.replace("_", " ")}
-                      </span>
-                      {req.paymentStatus === "SIMULATED_PAID" && (
-                        <span className="rounded-full bg-[var(--verified-green)]/12 px-2.5 py-0.5 text-[11px] font-bold text-[var(--verified-green)]">
-                          Paid (Demo)
+          <div className="grid gap-5 md:grid-cols-2">
+            {requested.map((req, idx) => {
+              const autoSavings = Math.max(
+                0,
+                Math.round(req.ride.distanceKm * 15) - req.ride.costPerSeatInr
+              );
+              return (
+                <Link
+                  key={req.id}
+                  href={`/rides/${req.ride.id}`}
+                  style={{ animationDelay: `${idx * 45}ms` }}
+                  className="card-enter card-lift group relative rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--accent-signal)]/60 overflow-hidden"
+                >
+                  <div className="p-5 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${statusBadgeClass(
+                            req.status
+                          )}`}
+                        >
+                          Seat: {req.status}
                         </span>
-                      )}
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${statusBadgeClass(
+                            req.ride.status
+                          )}`}
+                        >
+                          {req.ride.status.replace("_", " ")}
+                        </span>
+                        {autoSavings > 20 && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/12 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                            <Sparkles className="h-3 w-3" />
+                            Save ~₹{autoSavings}
+                          </span>
+                        )}
+                        {req.paymentStatus === "SIMULATED_PAID" && (
+                          <span className="rounded-full bg-[var(--verified-green)]/12 px-2.5 py-0.5 text-[11px] font-bold text-[var(--verified-green)]">
+                            Paid (Demo)
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono text-lg font-bold">
+                        {formatInr(req.ride.costPerSeatInr)}
+                      </span>
                     </div>
-                    <span className="font-mono text-lg font-bold">
-                      {formatInr(req.ride.costPerSeatInr)}
+
+                    {/* Vertical Dotted Route Spine */}
+                    <div className="relative pl-5 space-y-1.5">
+                      <span className="absolute left-[5px] top-2 bottom-2 border-l-2 border-dotted border-[var(--border-subtle)]" />
+                      <span
+                        aria-hidden="true"
+                        className="route-glide-dot pointer-events-none absolute left-[2px] top-1.5 h-2 w-2 rounded-full bg-[var(--accent-signal)] shadow-[0_0_8px_#FF5A26]"
+                      />
+                      <div className="relative">
+                        <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-[var(--accent-signal)] ring-4 ring-[var(--bg-surface)]" />
+                        <p className="text-sm font-bold truncate">
+                          {shortPlace(req.ride.originLabel)}
+                        </p>
+                      </div>
+                      <p className="text-[11px] text-[var(--text-muted)] truncate">
+                        Pickup: {shortPlace(req.pickupLabel)} ·{" "}
+                        <span className="font-mono">{req.ride.distanceKm} km</span>
+                      </p>
+                      <div className="relative">
+                        <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-[var(--text-ink)] ring-4 ring-[var(--bg-surface)]" />
+                        <p className="text-sm font-bold truncate">
+                          {shortPlace(req.ride.destLabel)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ticket Tear-Line with Cutouts */}
+                  <div className="relative flex items-center">
+                    <span
+                      aria-hidden="true"
+                      className="absolute -left-3 h-6 w-6 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-canvas)] z-10"
+                    />
+                    <div className="w-full border-t border-dashed border-[var(--border-subtle)]" />
+                    <span
+                      aria-hidden="true"
+                      className="absolute -right-3 h-6 w-6 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-canvas)] z-10"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between bg-[var(--bg-subtle)]/55 px-5 py-3 text-xs text-[var(--text-muted)]">
+                    <span className="inline-flex items-center gap-1">
+                      Driver:{" "}
+                      <strong className="text-[var(--text-ink)]">
+                        {req.ride.driver.fullName}
+                      </strong>
+                      {req.ride.driver.idVerificationStatus === "APPROVED" && (
+                        <BadgeCheck className="h-3.5 w-3.5 text-[var(--verified-green)]" />
+                      )}
+                    </span>
+                    <span className="inline-flex items-center gap-1 font-bold text-[var(--accent-signal)]">
+                      Open pass <ArrowRight className="h-3.5 w-3.5" />
                     </span>
                   </div>
-
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold truncate">
-                      {shortPlace(req.ride.originLabel)} →{" "}
-                      {shortPlace(req.ride.destLabel)}
-                    </p>
-                    <p className="text-xs text-[var(--text-muted)] truncate">
-                      Pickup: {shortPlace(req.pickupLabel)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between border-t border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)]/55 px-5 py-3 text-xs text-[var(--text-muted)]">
-                  <span className="inline-flex items-center gap-1">
-                    Driver:{" "}
-                    <strong className="text-[var(--text-ink)]">
-                      {req.ride.driver.fullName}
-                    </strong>
-                    {req.ride.driver.idVerificationStatus === "APPROVED" && (
-                      <BadgeCheck className="h-3.5 w-3.5 text-[var(--verified-green)]" />
-                    )}
-                  </span>
-                  <span className="inline-flex items-center gap-1 font-bold text-[var(--accent-signal)]">
-                    Open pass <ArrowRight className="h-3.5 w-3.5" />
-                  </span>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         )
       ) : offered.length === 0 ? (
@@ -278,7 +319,7 @@ export default function TripsPage() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2">
           {offered.map((ride, idx) => {
             const pendingCount = ride.requests.filter(
               (r) => r.status === "PENDING"
@@ -291,7 +332,7 @@ export default function TripsPage() {
                 key={ride.id}
                 href={`/rides/${ride.id}`}
                 style={{ animationDelay: `${idx * 45}ms` }}
-                className="animate-fade-up card-lift rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--accent-signal)]/60 overflow-hidden"
+                className="card-enter card-lift group relative rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--accent-signal)]/60 overflow-hidden"
               >
                 <div className="p-5 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -323,13 +364,45 @@ export default function TripsPage() {
                     </span>
                   </div>
 
-                  <p className="text-sm font-bold line-clamp-1">
-                    {shortPlace(ride.originLabel)} →{" "}
-                    {shortPlace(ride.destLabel)}
-                  </p>
+                  {/* Vertical Dotted Route Spine */}
+                  <div className="relative pl-5 space-y-1.5">
+                    <span className="absolute left-[5px] top-2 bottom-2 border-l-2 border-dotted border-[var(--border-subtle)]" />
+                    <span
+                      aria-hidden="true"
+                      className="route-glide-dot pointer-events-none absolute left-[2px] top-1.5 h-2 w-2 rounded-full bg-[var(--accent-signal)] shadow-[0_0_8px_#FF5A26]"
+                    />
+                    <div className="relative">
+                      <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-[var(--accent-signal)] ring-4 ring-[var(--bg-surface)]" />
+                      <p className="text-sm font-bold truncate">
+                        {shortPlace(ride.originLabel)}
+                      </p>
+                    </div>
+                    <p className="font-mono text-[11px] text-[var(--text-muted)]">
+                      {ride.distanceKm} km · {ride.estimatedDurationMin} min
+                    </p>
+                    <div className="relative">
+                      <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-[var(--text-ink)] ring-4 ring-[var(--bg-surface)]" />
+                      <p className="text-sm font-bold truncate">
+                        {shortPlace(ride.destLabel)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 border-t border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)]/55 px-5 py-3 text-xs text-[var(--text-muted)]">
+                {/* Ticket Tear-Line with Cutouts */}
+                <div className="relative flex items-center">
+                  <span
+                    aria-hidden="true"
+                    className="absolute -left-3 h-6 w-6 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-canvas)] z-10"
+                  />
+                  <div className="w-full border-t border-dashed border-[var(--border-subtle)]" />
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-3 h-6 w-6 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-canvas)] z-10"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 bg-[var(--bg-subtle)]/55 px-5 py-3 text-xs text-[var(--text-muted)]">
                   <span className="inline-flex items-center gap-1 font-mono">
                     <Clock className="h-3.5 w-3.5" />
                     {new Date(ride.departureTime).toLocaleString("en-IN", {

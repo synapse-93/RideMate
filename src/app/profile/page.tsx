@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import {
   BadgeCheck,
   Car,
   CheckCircle2,
   Clock,
+  GraduationCap,
+  ImagePlus,
   Lock,
   Phone,
   Save,
@@ -35,6 +43,13 @@ interface ProfileUser {
   emergencyContactPhone: string | null;
 }
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "ST";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
 export default function ProfilePage() {
   const [user, setUser] = useState<ProfileUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,6 +69,11 @@ export default function ProfilePage() {
   const [emergencyContactName, setEmergencyContactName] = useState("");
   const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
   const [pendingIdUpload, setPendingIdUpload] = useState<string | null>(null);
+  const [selectedFileMeta, setSelectedFileMeta] = useState<{
+    name: string;
+    sizeKb: number;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +125,10 @@ export default function ProfilePage() {
     reader.onload = () => {
       if (typeof reader.result === "string") {
         setPendingIdUpload(reader.result);
+        setSelectedFileMeta({
+          name: file.name,
+          sizeKb: Math.max(1, Math.round(file.size / 1024)),
+        });
         setError(null);
       }
     };
@@ -141,6 +165,7 @@ export default function ProfilePage() {
       }
       setUser(data.user);
       setPendingIdUpload(null);
+      setSelectedFileMeta(null);
       setMessage(
         pendingIdUpload
           ? "Profile saved and College ID submitted for review!"
@@ -156,7 +181,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="py-12 text-center text-sm text-[var(--text-muted)]">
-        Loading your profile…
+        Loading your Digital Campus Pass…
       </div>
     );
   }
@@ -172,41 +197,62 @@ export default function ProfilePage() {
   const previewImage = pendingIdUpload ?? user.idCardUrl;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 animate-fade-up">
-      {/* Transit Pass Profile Header */}
-      <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-extrabold tracking-[-0.03em]">
-              {user.fullName}
-            </h1>
-            {user.idVerificationStatus === "APPROVED" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--verified-green)]/12 px-2.5 py-0.5 text-xs font-bold text-[var(--verified-green)]">
-                <BadgeCheck className="h-3.5 w-3.5" />
-                Verified Student
-              </span>
-            )}
-            {user.idVerificationStatus === "PENDING" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-300">
-                <Clock className="h-3.5 w-3.5" />
-                ID Pending Review
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-[var(--text-muted)]">
-            {user.email} · {user.gender}
-          </p>
-        </div>
+    <div className="mx-auto max-w-3xl space-y-6 card-enter">
+      {/* Sleek Digital Campus Pass Header */}
+      <div className="relative overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-gradient-to-br from-[var(--bg-surface)] via-[var(--bg-surface)] to-[#FF5A26]/[0.08] p-6 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--text-ink)] text-lg font-extrabold text-[var(--bg-surface)] shadow-sm">
+              {getInitials(user.fullName)}
+            </div>
 
-        <div className="flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-4 py-2.5">
-          <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-          <div className="text-sm font-mono">
-            <span className="font-bold">
-              {user.totalRatings > 0 ? user.avgRating.toFixed(1) : "New"}
-            </span>{" "}
-            <span className="font-sans text-xs text-[var(--text-muted)]">
-              ({user.totalRatings} reviews)
-            </span>
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--accent-signal)]">
+                  <GraduationCap className="h-3.5 w-3.5" />
+                  Digital Campus Pass
+                </span>
+                {user.collegeIdNumber && (
+                  <span className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 px-2 py-0.5 font-mono text-[11px] font-bold text-[var(--text-ink)]">
+                    {user.collegeIdNumber}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-extrabold tracking-[-0.03em]">
+                  {user.fullName}
+                </h1>
+                {user.idVerificationStatus === "APPROVED" && (
+                  <span className="shimmer-badge inline-flex items-center gap-1 rounded-full bg-[var(--verified-green)]/14 px-3 py-0.5 text-xs font-bold text-[var(--verified-green)] border border-[var(--verified-green)]/25">
+                    <BadgeCheck className="h-3.5 w-3.5" />
+                    Verified Student
+                  </span>
+                )}
+                {user.idVerificationStatus === "PENDING" && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-300">
+                    <Clock className="h-3.5 w-3.5" />
+                    ID Pending Review
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs sm:text-sm text-[var(--text-muted)]">
+                {user.email} · {user.gender}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-xs px-4 py-2.5">
+            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+            <div className="text-sm font-mono">
+              <span className="font-bold">
+                {user.totalRatings > 0 ? user.avgRating.toFixed(1) : "New"}
+              </span>{" "}
+              <span className="font-sans text-xs text-[var(--text-muted)]">
+                ({user.totalRatings})
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -383,40 +429,60 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        {/* College ID Card Verification */}
+        {/* Styled College ID Dropzone */}
         <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-bold text-base flex items-center gap-2">
               <Upload className="h-4 w-4 text-[var(--accent-signal)]" />
-              College ID Card (Optional Verification)
+              College ID Card
             </h2>
             <span className="font-mono text-xs font-bold uppercase text-[var(--text-muted)]">
-              {user.idVerificationStatus}
+              Status: {user.idVerificationStatus}
             </span>
           </div>
 
-          <p className="text-xs text-[var(--text-muted)]">
-            Upload a clear photo of your student ID (PNG, JPEG, or WebP, max 500
-            KB) to earn a Verified Student badge after campus admin review.
-          </p>
-
           <input
+            ref={fileInputRef}
             type="file"
             accept="image/png,image/jpeg,image/webp"
             onChange={handleIdFileChange}
-            className="block w-full text-xs text-[var(--text-muted)] file:mr-4 file:rounded-xl file:border-0 file:bg-[var(--text-ink)] file:px-4 file:py-2 file:text-xs file:font-bold file:text-[var(--bg-surface)] cursor-pointer"
+            className="hidden"
           />
 
-          {previewImage && (
-            <div className="pt-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={previewImage}
-                alt="Uploaded College ID Card preview"
-                className="max-h-52 rounded-xl border border-[var(--border-subtle)] object-contain"
-              />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="btn-press group w-full rounded-2xl border-2 border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)]/45 hover:border-[var(--accent-signal)] hover:bg-[var(--accent-signal)]/[0.04] p-5 text-left transition-colors"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              {previewImage ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={previewImage}
+                  alt="College ID card thumbnail"
+                  className="h-20 w-32 shrink-0 rounded-xl border border-[var(--border-subtle)] object-cover bg-[var(--bg-surface)]"
+                />
+              ) : (
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--accent-signal)]">
+                  <ImagePlus className="h-5 w-5" />
+                </span>
+              )}
+
+              <div className="min-w-0 space-y-1">
+                <p className="text-sm font-bold text-[var(--text-ink)]">
+                  {selectedFileMeta
+                    ? `${selectedFileMeta.name} (${selectedFileMeta.sizeKb} KB)`
+                    : previewImage
+                    ? "Replace College ID photo"
+                    : "Upload College ID photo"}
+                </p>
+                <p className="text-xs text-[var(--text-muted)]">
+                  PNG, JPEG, or WebP · max 500 KB · Earn your Verified Student
+                  badge after admin review.
+                </p>
+              </div>
             </div>
-          )}
+          </button>
         </section>
 
         <button
