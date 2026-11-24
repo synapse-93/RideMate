@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   AlertCircle,
+  ArrowLeftRight,
   Clock,
-  IndianRupee,
+  Fuel,
   Loader2,
-  MapPin,
   PlusCircle,
   Route,
   Shield,
@@ -36,17 +36,23 @@ function defaultDepartureLocalValue(): string {
   )}:${pad(d.getMinutes())}`;
 }
 
+function vehicleDisplayLabel(type: CostVehicleType | undefined): string {
+  if (type === "TWO_WHEELER") return "Two-wheeler";
+  if (type === "CAR") return "Car";
+  return "";
+}
+
 export default function OfferRidePage() {
   const router = useRouter();
   const [me, setMe] = useState<MeUser | null>(null);
   const [pickMode, setPickMode] = useState<"ORIGIN" | "DEST">("ORIGIN");
+  const [swappedCount, setSwappedCount] = useState(0);
 
   const [origin, setOrigin] = useState<SelectedLocation | null>(null);
   const [dest, setDest] = useState<SelectedLocation | null>(null);
   const [polyline, setPolyline] = useState<LatLng[]>([]);
   const [distanceKm, setDistanceKm] = useState<number>(0);
   const [estimatedDurationMin, setEstimatedDurationMin] = useState<number>(0);
-  const [routeSource, setRouteSource] = useState<"osrm" | "haversine_fallback" | null>(null);
   const [routing, setRouting] = useState(false);
 
   const [departureLocal, setDepartureLocal] = useState(defaultDepartureLocalValue);
@@ -58,9 +64,10 @@ export default function OfferRidePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     async function loadMe(): Promise<void> {
       const res = await fetch("/api/auth/me", { cache: "no-store" });
-      if (res.ok) {
+      if (!cancelled && res.ok) {
         const data = (await res.json()) as { user: MeUser | null };
         if (data.user) {
           setMe(data.user);
@@ -71,9 +78,11 @@ export default function OfferRidePage() {
       }
     }
     void loadMe();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Recompute OSRM route whenever origin and destination are both set
   useEffect(() => {
     if (!origin || !dest) {
       return;
@@ -97,12 +106,10 @@ export default function OfferRidePage() {
             polyline: LatLng[];
             distanceKm: number;
             estimatedDurationMin: number;
-            source: "osrm" | "haversine_fallback";
           };
           setPolyline(data.polyline);
           setDistanceKm(data.distanceKm);
           setEstimatedDurationMin(data.estimatedDurationMin);
-          setRouteSource(data.source);
 
           const vehicle: CostVehicleType = me?.vehicleType ?? "CAR";
           const est = estimateFuelSplit(data.distanceKm, vehicle, seatsTotal);
@@ -122,13 +129,20 @@ export default function OfferRidePage() {
   const activePolyline = hasBothEndpoints ? polyline : [];
   const activeDistanceKm = hasBothEndpoints ? distanceKm : 0;
   const activeDurationMin = hasBothEndpoints ? estimatedDurationMin : 0;
-  const activeRouteSource = hasBothEndpoints ? routeSource : null;
+  const routeReady = hasBothEndpoints && activeDistanceKm > 0;
 
   const fuelEstimate = estimateFuelSplit(
     activeDistanceKm,
     me?.vehicleType ?? "CAR",
     seatsTotal
   );
+
+  function handleSwap(): void {
+    const prev = origin;
+    setOrigin(dest);
+    setDest(prev);
+    setSwappedCount((c) => c + 1);
+  }
 
   function handleMapClick(coords: LatLng): void {
     const label = `Pinned (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`;
@@ -142,8 +156,8 @@ export default function OfferRidePage() {
 
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
-    if (!origin || !dest || polyline.length < 2) {
-      setError("Please select both origin and destination so a route can be computed.");
+    if (!origin || !dest || activePolyline.length < 2) {
+      setError("Pick both your start and drop-off points to plot the route.");
       return;
     }
 
@@ -160,9 +174,9 @@ export default function OfferRidePage() {
           destLabel: dest.label,
           destLat: dest.lat,
           destLng: dest.lng,
-          polyline,
-          distanceKm,
-          estimatedDurationMin,
+          polyline: activePolyline,
+          distanceKm: activeDistanceKm,
+          estimatedDurationMin: activeDurationMin,
           departureTime: new Date(departureLocal).toISOString(),
           seatsTotal,
           costPerSeatInr,
@@ -184,182 +198,252 @@ export default function OfferRidePage() {
   }
 
   const canEnableWomenOnly = me?.gender === "FEMALE";
+  const vehicleTag = vehicleDisplayLabel(me?.vehicleType);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Offer a Campus Ride</h1>
-        <p className="text-sm text-zinc-500">
-          Pick your start and destination to auto-compute the OSRM route (km) and
-          fair INR fuel split.
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[-0.03em]">
+          Offer a Ride
+        </h1>
+        <p className="text-sm text-[var(--text-muted)]">
+          Set your route, pick open seats, and share fuel costs fairly.
         </p>
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
+        <div className="flex items-start gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* Form Column */}
+      <div className="grid gap-6 lg:grid-cols-12 items-start">
+        {/* Left: Compact Transit Offer Card */}
         <form
           onSubmit={handleSubmit}
-          className="lg:col-span-6 space-y-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 sm:p-6"
+          className="lg:col-span-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-4 shadow-xs"
         >
-          <LocationAutocomplete
-            label="Origin (Pickup Corridor Start)"
-            value={origin}
-            onChange={setOrigin}
-          />
+          {/* Origin + Swap + Destination */}
+          <div className="relative space-y-2.5">
+            <LocationAutocomplete
+              label="Start"
+              placeholder="Where are you leaving from?"
+              value={origin}
+              onChange={setOrigin}
+              compact
+              dotColor="orange"
+            />
 
-          <LocationAutocomplete
-            label="Destination (Campus / Drop-off)"
-            value={dest}
-            onChange={setDest}
-          />
+            <div className="flex justify-end -my-1 pr-1">
+              <button
+                type="button"
+                onClick={handleSwap}
+                aria-label="Swap start and drop-off"
+                className="btn-press inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-subtle)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-muted)] hover:border-[var(--accent-signal)] hover:text-[var(--accent-signal)]"
+              >
+                <ArrowLeftRight
+                  className="h-3 w-3 transition-transform duration-300 ease-out"
+                  style={{ transform: `rotate(${swappedCount * 180}deg)` }}
+                />
+                Swap
+              </button>
+            </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                Departure Date & Time
+            <LocationAutocomplete
+              label="Drop-off"
+              placeholder="Where are you heading?"
+              value={dest}
+              onChange={setDest}
+              compact
+              dotColor="ink"
+            />
+          </div>
+
+          {/* Departure Time + Seat Stepper Pills */}
+          <div className="grid gap-3.5 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Departure
               </label>
               <input
                 type="datetime-local"
                 required
                 value={departureLocal}
                 onChange={(e) => setDepartureLocal(e.target.value)}
-                className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+                className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5 text-xs font-mono font-medium outline-none focus:border-[var(--accent-signal)]"
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                Available Seats
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Empty Seats
               </label>
-              <select
-                value={seatsTotal}
-                onChange={(e) => setSeatsTotal(Number(e.target.value))}
-                className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
-              >
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <option key={n} value={n}>
-                    {n} {n === 1 ? "seat" : "seats"}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[1, 2, 3, 4].map((count) => {
+                  const selected = seatsTotal === count;
+                  return (
+                    <button
+                      key={count}
+                      type="button"
+                      onClick={() => setSeatsTotal(count)}
+                      className={`btn-press rounded-xl py-2 font-mono text-sm font-bold border ${
+                        selected
+                          ? "border-[var(--accent-signal)] bg-[var(--accent-signal)] text-white shadow-xs"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-[var(--text-ink)] hover:border-[var(--accent-signal)]/50"
+                      }`}
+                    >
+                      {count}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* Fuel Cost Summary */}
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-                <IndianRupee className="h-3.5 w-3.5" />
-                Suggested Fuel Split ({me?.vehicleType ?? "CAR"})
-              </span>
-              <span className="text-zinc-500">
-                Total fuel est: {formatInr(fuelEstimate.totalFuelCostInr)}
-              </span>
+          {/* Fair Fuel Split Card (clean prompt before route, animated reveal once computed) */}
+          {!routeReady ? (
+            <div className="rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-4 py-3.5 flex items-center gap-2.5 text-xs text-[var(--text-muted)]">
+              {routing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-[var(--accent-signal)] shrink-0" />
+                  <span>Calculating direct route and fair fuel split…</span>
+                </>
+              ) : (
+                <>
+                  <Fuel className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
+                  <span>Pick start &amp; drop-off to calculate fair fuel split</span>
+                </>
+              )}
             </div>
-            <div className="flex items-center gap-3">
-              <label className="text-xs text-zinc-500 shrink-0">
-                Cost per seat (INR ₹):
-              </label>
+          ) : (
+            <div className="animate-fade-up rounded-xl border border-[var(--accent-signal)]/30 bg-[var(--accent-signal)]/[0.06] p-4 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-[var(--text-ink)] flex items-center gap-1.5">
+                  <Fuel className="h-3.5 w-3.5 text-[var(--accent-signal)]" />
+                  Fair fuel split{vehicleTag ? ` · ${vehicleTag}` : ""}
+                </span>
+                <span className="font-mono text-[11px] text-[var(--text-muted)]">
+                  Trip est. {formatInr(fuelEstimate.totalFuelCostInr)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <label className="text-xs font-medium text-[var(--text-muted)]">
+                  Your ask per seat
+                </label>
+                <div className="relative flex items-center">
+                  <span className="pointer-events-none absolute left-3 font-mono text-sm font-bold text-[var(--text-muted)]">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={2000}
+                    value={costPerSeatInr}
+                    onChange={(e) => setCostPerSeatInr(Number(e.target.value))}
+                    className="w-28 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] pl-7 pr-3 py-1.5 font-mono text-sm font-bold outline-none focus:border-[var(--accent-signal)]"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Women-Only Toggle — Strictly shown ONLY to Female drivers */}
+          {canEnableWomenOnly && (
+            <label className="flex items-center justify-between rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-4 py-3 cursor-pointer">
+              <div className="space-y-0.5 pr-3">
+                <p className="text-xs font-bold text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
+                  <Shield className="h-3.5 w-3.5" />
+                  Women-Only Ride
+                </p>
+                <p className="text-[11px] text-[var(--text-muted)]">
+                  Visible and bookable only by female students.
+                </p>
+              </div>
               <input
-                type="number"
-                min={0}
-                max={2000}
-                value={costPerSeatInr}
-                onChange={(e) => setCostPerSeatInr(Number(e.target.value))}
-                className="w-28 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-sm font-bold outline-none focus:border-emerald-500"
+                type="checkbox"
+                checked={womenOnly}
+                onChange={(e) => setWomenOnly(e.target.checked)}
+                className="h-4 w-4 accent-rose-600 cursor-pointer"
               />
-            </div>
-          </div>
-
-          {/* Women-Only Toggle (Only enabled for FEMALE users) */}
-          <div
-            className={`flex items-center justify-between rounded-xl border px-4 py-3 ${
-              canEnableWomenOnly
-                ? "border-rose-500/30 bg-rose-500/5"
-                : "border-zinc-200 dark:border-zinc-800 opacity-60"
-            }`}
-          >
-            <div className="space-y-0.5 pr-3">
-              <p className="text-sm font-semibold flex items-center gap-1.5">
-                <Shield className="h-4 w-4 text-rose-500" />
-                Women-Only Ride
-              </p>
-              <p className="text-xs text-zinc-500">
-                {canEnableWomenOnly
-                  ? "Only verified female students will see or request this ride."
-                  : "Available only for drivers whose profile gender is Female."}
-              </p>
-            </div>
-            <input
-              type="checkbox"
-              disabled={!canEnableWomenOnly}
-              checked={canEnableWomenOnly && womenOnly}
-              onChange={(e) => setWomenOnly(e.target.checked)}
-              className="h-5 w-5 accent-rose-600 disabled:cursor-not-allowed cursor-pointer"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-              Pickup Notes (Optional)
             </label>
-            <textarea
-              rows={2}
+          )}
+
+          {/* Pickup Note */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Pickup Note (Optional)
+            </label>
+            <input
+              type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g., Leaving sharp on time from Gate B. Spare helmet available."
-              className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3.5 py-2 text-sm outline-none focus:border-emerald-500"
+              placeholder="e.g., Leaving on time from Gate B · spare helmet ready"
+              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent-signal)]"
             />
           </div>
 
           <button
             type="submit"
             disabled={submitting || routing || !origin || !dest}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-emerald-500 dark:text-zinc-950 dark:hover:bg-emerald-400 disabled:opacity-50"
+            className="btn-press flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent-signal)] px-5 py-3 text-sm font-bold text-white hover:bg-[var(--accent-signal-hover)] disabled:opacity-50 shadow-xs"
           >
             <PlusCircle className="h-4 w-4" />
-            {submitting ? "Publishing Ride..." : "Publish Ride"}
+            {submitting ? "Publishing…" : "Publish Ride"}
           </button>
         </form>
 
-        {/* Interactive Map Column */}
-        <div className="lg:col-span-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 text-xs">
-            <span className="font-medium text-zinc-600 dark:text-zinc-300 flex items-center gap-1.5">
-              <MapPin className="h-4 w-4 text-emerald-500" />
-              Click map to pin:
-            </span>
-            <div className="flex gap-1.5">
+        {/* Right: Sticky Styled Map + Floating Glass Pill Overlay */}
+        <div className="lg:col-span-7 lg:sticky lg:top-20 relative">
+          {/* Floating Glass Pill Overlay */}
+          <div className="pointer-events-none absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2">
+            <div className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]/90 backdrop-blur-md p-1 shadow-md">
               <button
                 type="button"
                 onClick={() => setPickMode("ORIGIN")}
-                className={`rounded-lg px-3 py-1 font-semibold ${
+                className={`btn-press rounded-full px-3 py-1 text-[11px] font-bold ${
                   pickMode === "ORIGIN"
-                    ? "bg-emerald-600 text-white"
-                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                    ? "bg-[var(--accent-signal)] text-white"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-ink)]"
                 }`}
               >
-                Origin (A)
+                Pin Start (A)
               </button>
               <button
                 type="button"
                 onClick={() => setPickMode("DEST")}
-                className={`rounded-lg px-3 py-1 font-semibold ${
+                className={`btn-press rounded-full px-3 py-1 text-[11px] font-bold ${
                   pickMode === "DEST"
-                    ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-950"
-                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                    ? "bg-[var(--text-ink)] text-[var(--bg-surface)]"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-ink)]"
                 }`}
               >
-                Destination (B)
+                Pin Drop-off (B)
               </button>
             </div>
+
+            {(routing || routeReady) && (
+              <div className="pointer-events-auto inline-flex items-center gap-2.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]/92 backdrop-blur-md px-3.5 py-1.5 text-xs font-mono font-bold text-[var(--text-ink)] shadow-md">
+                {routing ? (
+                  <span className="inline-flex items-center gap-1.5 text-[var(--accent-signal)]">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Routing…
+                  </span>
+                ) : (
+                  <>
+                    <span className="inline-flex items-center gap-1">
+                      <Route className="h-3.5 w-3.5 text-[var(--accent-signal)]" />
+                      {activeDistanceKm} km
+                    </span>
+                    <span className="text-[var(--text-muted)]">·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+                      {activeDurationMin} min
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <RideMap
@@ -367,48 +451,8 @@ export default function OfferRidePage() {
             dest={dest}
             polyline={activePolyline}
             onMapClick={handleMapClick}
-            heightClassName="h-80 sm:h-[420px]"
+            heightClassName="h-[360px] sm:h-[460px] lg:h-[560px]"
           />
-
-          {/* Route Telemetry Strip */}
-          <div className="grid grid-cols-3 gap-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 text-center">
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-zinc-500">
-                Distance
-              </p>
-              <p className="mt-0.5 text-base font-bold flex items-center justify-center gap-1">
-                {routing ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
-                ) : (
-                  <>
-                    <Route className="h-4 w-4 text-emerald-500" />
-                    {activeDistanceKm > 0 ? `${activeDistanceKm} km` : "—"}
-                  </>
-                )}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-zinc-500">
-                Est. Time
-              </p>
-              <p className="mt-0.5 text-base font-bold flex items-center justify-center gap-1">
-                <Clock className="h-4 w-4 text-emerald-500" />
-                {activeDurationMin > 0 ? `${activeDurationMin} min` : "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-zinc-500">
-                Routing
-              </p>
-              <p className="mt-0.5 text-xs font-semibold pt-1">
-                {activeRouteSource === "osrm"
-                  ? "OSRM Road"
-                  : activeRouteSource === "haversine_fallback"
-                  ? "Haversine Est."
-                  : "Pick points"}
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

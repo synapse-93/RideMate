@@ -5,11 +5,11 @@ import { useEffect, useState } from "react";
 import {
   ArrowRight,
   BadgeCheck,
-  Car,
   Clock,
   PlusCircle,
   Route,
   Shield,
+  Ticket,
   Users,
 } from "lucide-react";
 import { formatInr } from "@/lib/cost";
@@ -59,20 +59,24 @@ interface RequestedRide {
   };
 }
 
+function shortPlace(label: string): string {
+  return label.split(",")[0]?.trim() || label;
+}
+
 function statusBadgeClass(status: string): string {
   switch (status) {
     case "OPEN":
     case "ACCEPTED":
-      return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
+      return "bg-[var(--verified-green)]/12 text-[var(--verified-green)]";
     case "CONFIRMED":
     case "IN_PROGRESS":
-      return "bg-sky-500/15 text-sky-700 dark:text-sky-400";
+      return "bg-[var(--accent-signal)]/12 text-[var(--accent-signal)]";
     case "PENDING":
-      return "bg-amber-500/15 text-amber-700 dark:text-amber-400";
+      return "bg-amber-500/15 text-amber-700 dark:text-amber-300";
     case "COMPLETED":
-      return "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+      return "bg-[var(--bg-subtle)] text-[var(--text-muted)]";
     default:
-      return "bg-rose-500/15 text-rose-700 dark:text-rose-400";
+      return "bg-rose-500/12 text-rose-600 dark:text-rose-300";
   }
 }
 
@@ -99,7 +103,10 @@ export default function TripsPage() {
         };
         setOffered(data.offered ?? []);
         setRequested(data.requested ?? []);
-        if ((data.requested?.length ?? 0) === 0 && (data.offered?.length ?? 0) > 0) {
+        if (
+          (data.requested?.length ?? 0) === 0 &&
+          (data.offered?.length ?? 0) > 0
+        ) {
           setTab("OFFERED");
         }
       } catch {
@@ -116,8 +123,8 @@ export default function TripsPage() {
 
   if (loading) {
     return (
-      <div className="py-12 text-center text-sm text-zinc-500">
-        Loading your trips...
+      <div className="py-12 text-center text-sm text-[var(--text-muted)]">
+        Loading your trips…
       </div>
     );
   }
@@ -130,61 +137,60 @@ export default function TripsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Car className="h-6 w-6 text-emerald-500" />
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[-0.03em] flex items-center gap-2">
+            <Ticket className="h-6 w-6 text-[var(--accent-signal)]" />
             My Trips
           </h1>
-          <p className="text-sm text-zinc-500">
-            Manage seat requests, track live trips, chat with co-riders, and
-            settle fuel splits.
+          <p className="text-sm text-[var(--text-muted)]">
+            Track seats, coordinate pickups, and settle fair fuel splits.
           </p>
         </div>
         <Link
           href="/offer"
-          className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-emerald-500 dark:text-zinc-950"
+          className="btn-press inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-signal)] px-4 py-2 text-xs font-bold text-white hover:bg-[var(--accent-signal-hover)]"
         >
-          <PlusCircle className="h-4 w-4" />
+          <PlusCircle className="h-3.5 w-3.5" />
           Offer Ride
         </Link>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2">
+      {/* Segmented Pill Tabs */}
+      <div className="inline-flex gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-1">
         <button
           type="button"
           onClick={() => setTab("REQUESTED")}
-          className={`rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+          className={`btn-press rounded-full px-4 py-1.5 text-xs font-bold ${
             tab === "REQUESTED"
-              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
-              : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+              ? "bg-[var(--text-ink)] text-[var(--bg-surface)]"
+              : "text-[var(--text-muted)] hover:text-[var(--text-ink)]"
           }`}
         >
-          Booked / Requested ({requested.length})
+          Booked ({requested.length})
         </button>
         <button
           type="button"
           onClick={() => setTab("OFFERED")}
-          className={`rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+          className={`btn-press rounded-full px-4 py-1.5 text-xs font-bold ${
             tab === "OFFERED"
-              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
-              : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+              ? "bg-[var(--text-ink)] text-[var(--bg-surface)]"
+              : "text-[var(--text-muted)] hover:text-[var(--text-ink)]"
           }`}
         >
-          Offered as Driver ({offered.length})
+          Driving ({offered.length})
         </button>
       </div>
 
       {tab === "REQUESTED" ? (
         requested.length === 0 ? (
-          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-10 text-center space-y-2">
-            <p className="font-semibold">No passenger trips yet</p>
-            <p className="text-sm text-zinc-500">
-              Browse available campus corridors in{" "}
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-10 text-center space-y-2">
+            <p className="font-bold">No booked rides yet</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              Explore open campus commutes in{" "}
               <Link
                 href="/find"
-                className="text-emerald-600 dark:text-emerald-400 underline"
+                className="font-bold text-[var(--accent-signal)] hover:underline"
               >
                 Find Ride
               </Link>
@@ -193,57 +199,64 @@ export default function TripsPage() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {requested.map((req) => (
+            {requested.map((req, idx) => (
               <Link
                 key={req.id}
                 href={`/rides/${req.ride.id}`}
-                className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 hover:border-emerald-500/60 transition-all space-y-3"
+                style={{ animationDelay: `${idx * 45}ms` }}
+                className="animate-fade-up card-lift rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--accent-signal)]/60 overflow-hidden"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${statusBadgeClass(
-                        req.status
-                      )}`}
-                    >
-                      Seat: {req.status}
-                    </span>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${statusBadgeClass(
-                        req.ride.status
-                      )}`}
-                    >
-                      Trip: {req.ride.status}
-                    </span>
-                    {req.paymentStatus === "SIMULATED_PAID" && (
-                      <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                        Paid (Demo)
+                <div className="p-5 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${statusBadgeClass(
+                          req.status
+                        )}`}
+                      >
+                        Seat: {req.status}
                       </span>
-                    )}
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${statusBadgeClass(
+                          req.ride.status
+                        )}`}
+                      >
+                        {req.ride.status.replace("_", " ")}
+                      </span>
+                      {req.paymentStatus === "SIMULATED_PAID" && (
+                        <span className="rounded-full bg-[var(--verified-green)]/12 px-2.5 py-0.5 text-[11px] font-bold text-[var(--verified-green)]">
+                          Paid (Demo)
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-mono text-lg font-bold">
+                      {formatInr(req.ride.costPerSeatInr)}
+                    </span>
                   </div>
-                  <span className="font-bold">
-                    {formatInr(req.ride.costPerSeatInr)}
-                  </span>
+
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold truncate">
+                      {shortPlace(req.ride.originLabel)} →{" "}
+                      {shortPlace(req.ride.destLabel)}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)] truncate">
+                      Pickup: {shortPlace(req.pickupLabel)}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold line-clamp-1">
-                    {req.ride.originLabel} → {req.ride.destLabel}
-                  </p>
-                  <p className="text-xs text-zinc-500 line-clamp-1">
-                    Your pickup: {req.pickupLabel}
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between border-t border-zinc-100 dark:border-zinc-800 pt-3 text-xs text-zinc-500">
+                <div className="flex items-center justify-between border-t border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)]/55 px-5 py-3 text-xs text-[var(--text-muted)]">
                   <span className="inline-flex items-center gap-1">
-                    Driver: <strong>{req.ride.driver.fullName}</strong>
+                    Driver:{" "}
+                    <strong className="text-[var(--text-ink)]">
+                      {req.ride.driver.fullName}
+                    </strong>
                     {req.ride.driver.idVerificationStatus === "APPROVED" && (
-                      <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
+                      <BadgeCheck className="h-3.5 w-3.5 text-[var(--verified-green)]" />
                     )}
                   </span>
-                  <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                    Open Trip <ArrowRight className="h-3.5 w-3.5" />
+                  <span className="inline-flex items-center gap-1 font-bold text-[var(--accent-signal)]">
+                    Open pass <ArrowRight className="h-3.5 w-3.5" />
                   </span>
                 </div>
               </Link>
@@ -251,22 +264,22 @@ export default function TripsPage() {
           </div>
         )
       ) : offered.length === 0 ? (
-        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-10 text-center space-y-2">
-          <p className="font-semibold">No offered rides yet</p>
-          <p className="text-sm text-zinc-500">
-            Have spare seats on your commute?{" "}
+        <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-10 text-center space-y-2">
+          <p className="font-bold">No offered rides yet</p>
+          <p className="text-sm text-[var(--text-muted)]">
+            Have spare seats on your drive?{" "}
             <Link
               href="/offer"
-              className="text-emerald-600 dark:text-emerald-400 underline"
+              className="font-bold text-[var(--accent-signal)] hover:underline"
             >
               Offer a ride
             </Link>{" "}
-            and split fuel costs.
+            and share fuel costs.
           </p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {offered.map((ride) => {
+          {offered.map((ride, idx) => {
             const pendingCount = ride.requests.filter(
               (r) => r.status === "PENDING"
             ).length;
@@ -277,40 +290,47 @@ export default function TripsPage() {
               <Link
                 key={ride.id}
                 href={`/rides/${ride.id}`}
-                className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 hover:border-emerald-500/60 transition-all space-y-3"
+                style={{ animationDelay: `${idx * 45}ms` }}
+                className="animate-fade-up card-lift rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--accent-signal)]/60 overflow-hidden"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${statusBadgeClass(
-                        ride.status
-                      )}`}
-                    >
-                      {ride.status}
+                <div className="p-5 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${statusBadgeClass(
+                          ride.status
+                        )}`}
+                      >
+                        {ride.status.replace("_", " ")}
+                      </span>
+                      {ride.womenOnly && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/12 px-2.5 py-0.5 text-[11px] font-bold text-rose-600 dark:text-rose-300">
+                          <Shield className="h-3 w-3" />
+                          Women-Only
+                        </span>
+                      )}
+                      {pendingCount > 0 && (
+                        <span className="rounded-full bg-[var(--accent-signal)]/12 px-2.5 py-0.5 text-[11px] font-bold text-[var(--accent-signal)]">
+                          {pendingCount} pending
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-mono text-lg font-bold">
+                      {formatInr(ride.costPerSeatInr)}
+                      <span className="font-sans text-[11px] font-normal text-[var(--text-muted)]">
+                        /seat
+                      </span>
                     </span>
-                    {ride.womenOnly && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700 dark:text-rose-300">
-                        <Shield className="h-3 w-3" />
-                        Women-Only
-                      </span>
-                    )}
-                    {pendingCount > 0 && (
-                      <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                        {pendingCount} pending request{pendingCount > 1 ? "s" : ""}
-                      </span>
-                    )}
                   </div>
-                  <span className="font-bold">
-                    {formatInr(ride.costPerSeatInr)}/seat
-                  </span>
+
+                  <p className="text-sm font-bold line-clamp-1">
+                    {shortPlace(ride.originLabel)} →{" "}
+                    {shortPlace(ride.destLabel)}
+                  </p>
                 </div>
 
-                <p className="text-sm font-semibold line-clamp-2">
-                  {ride.originLabel.split(",")[0]} → {ride.destLabel.split(",")[0]}
-                </p>
-
-                <div className="flex flex-wrap gap-3 text-xs text-zinc-500">
-                  <span className="inline-flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-3 border-t border-dashed border-[var(--border-subtle)] bg-[var(--bg-subtle)]/55 px-5 py-3 text-xs text-[var(--text-muted)]">
+                  <span className="inline-flex items-center gap-1 font-mono">
                     <Clock className="h-3.5 w-3.5" />
                     {new Date(ride.departureTime).toLocaleString("en-IN", {
                       day: "numeric",
@@ -319,7 +339,7 @@ export default function TripsPage() {
                       minute: "2-digit",
                     })}
                   </span>
-                  <span className="inline-flex items-center gap-1">
+                  <span className="inline-flex items-center gap-1 font-mono">
                     <Route className="h-3.5 w-3.5" />
                     {ride.distanceKm} km
                   </span>

@@ -3,18 +3,25 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import {
   Bell,
   Car,
   Compass,
-  Home,
   LogIn,
   LogOut,
   Moon,
   PlusCircle,
   ShieldCheck,
   Sun,
+  Ticket,
   User,
 } from "lucide-react";
 
@@ -38,13 +45,25 @@ interface NotificationItem {
   createdAt: string;
 }
 
-const NAV_ITEMS = [
-  { href: "/", label: "Home", mobileLabel: "Home", icon: Home },
-  { href: "/find", label: "Find Ride", mobileLabel: "Find", icon: Compass },
-  { href: "/offer", label: "Offer Ride", mobileLabel: "Offer", icon: PlusCircle },
-  { href: "/trips", label: "Trips", mobileLabel: "Trips", icon: Car },
-  { href: "/profile", label: "Profile", mobileLabel: "Profile", icon: User },
+const DESKTOP_NAV_ITEMS = [
+  { href: "/find", label: "Find", icon: Compass },
+  { href: "/offer", label: "Offer", icon: PlusCircle },
+  { href: "/trips", label: "Trips", icon: Ticket },
 ] as const;
+
+const MOBILE_NAV_ITEMS = [
+  { href: "/find", label: "Find", icon: Compass },
+  { href: "/offer", label: "Offer", icon: PlusCircle },
+  { href: "/trips", label: "Trips", icon: Ticket },
+  { href: "/profile", label: "Profile", icon: User },
+] as const;
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "RM";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
 
 interface AppShellProps {
   children: ReactNode;
@@ -62,6 +81,7 @@ export function AppShell({ children }: AppShellProps) {
   const [user, setUser] = useState<NavUser | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [bellOpen, setBellOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -71,8 +91,18 @@ export function AppShell({ children }: AppShellProps) {
         setNotifications(data.notifications ?? []);
       }
     } catch {
-      // Ignore transient network errors during polling
+      // Ignore transient network errors
     }
+  }, []);
+
+  useEffect(() => {
+    function handleOutside(event: MouseEvent): void {
+      if (bellRef.current && !bellRef.current.contains(event.target as Node)) {
+        setBellOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
   useEffect(() => {
@@ -172,36 +202,38 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-950 dark:bg-zinc-950 dark:text-zinc-50 flex flex-col">
-      {/* Desktop & Mobile Top Bar */}
-      <header className="sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-ink)] flex flex-col">
+      {/* Frosted Transit Header */}
+      <header className="sticky top-0 z-40 border-b border-[var(--border-subtle)] bg-[var(--bg-canvas)]/85 backdrop-blur-md">
+        <div className="mx-auto flex h-15 max-w-6xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-6">
+            {/* Brand Mark -> Home */}
             <Link
               href="/"
-              className="flex items-center gap-2 font-bold tracking-tight text-lg"
+              className="group flex items-center gap-2.5 font-extrabold tracking-tight text-lg"
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-950 text-emerald-400 dark:bg-emerald-500 dark:text-zinc-950">
-                <Car className="h-4 w-4" />
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--accent-signal)] text-white shadow-xs transition-transform duration-200 group-hover:scale-105">
+                <Car className="h-4 w-4 stroke-[2.4]" />
               </span>
-              <span>RideMate</span>
+              <span className="tracking-[-0.03em]">RideMate</span>
             </Link>
 
-            <nav className="hidden md:flex items-center gap-1">
-              {NAV_ITEMS.map((item) => {
+            {/* Streamlined Desktop Nav */}
+            <nav className="hidden md:flex items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-1">
+              {DESKTOP_NAV_ITEMS.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                    className={`btn-press flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold ${
                       active
-                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950"
-                        : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-50"
+                        ? "bg-[var(--text-ink)] text-[var(--bg-surface)]"
+                        : "text-[var(--text-muted)] hover:text-[var(--text-ink)] hover:bg-[var(--bg-subtle)]"
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-3.5 w-3.5" />
                     {item.label}
                   </Link>
                 );
@@ -210,13 +242,13 @@ export function AppShell({ children }: AppShellProps) {
               {user?.role === "ADMIN" && (
                 <Link
                   href="/admin"
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  className={`btn-press flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold ${
                     isActive("/admin")
-                      ? "bg-emerald-600 text-white"
-                      : "text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
+                      ? "bg-[var(--accent-signal)] text-white"
+                      : "text-[var(--accent-signal)] hover:bg-[var(--accent-signal)]/10"
                   }`}
                 >
-                  <ShieldCheck className="h-4 w-4" />
+                  <ShieldCheck className="h-3.5 w-3.5" />
                   Admin
                 </Link>
               )}
@@ -227,7 +259,7 @@ export function AppShell({ children }: AppShellProps) {
             {user?.role === "ADMIN" && (
               <Link
                 href="/admin"
-                className="md:hidden inline-flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400"
+                className="md:hidden btn-press inline-flex items-center gap-1 rounded-full border border-[var(--accent-signal)]/30 bg-[var(--accent-signal)]/10 px-2.5 py-1 text-xs font-semibold text-[var(--accent-signal)]"
               >
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Admin
@@ -236,41 +268,42 @@ export function AppShell({ children }: AppShellProps) {
 
             {/* Notification Bell */}
             {user && (
-              <div className="relative">
+              <div ref={bellRef} className="relative">
                 <button
                   type="button"
                   onClick={() => setBellOpen((o) => !o)}
                   aria-label="Notifications"
-                  className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+                  className="btn-press relative flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-subtle)]"
                 >
-                  <Bell className="h-4 w-4" />
+                  <Bell className="h-4 w-4 text-[var(--text-ink)]" />
                   {unreadCount > 0 && (
-                    <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
-                      {unreadCount > 9 ? "9+" : unreadCount}
+                    <span className="absolute right-1.5 top-1.5 flex h-2.5 w-2.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent-signal)] opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--accent-signal)]" />
                     </span>
                   )}
                 </button>
 
                 {bellOpen && (
-                  <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl z-50 overflow-hidden">
-                    <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 px-3.5 py-2.5">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                        Notifications ({unreadCount} unread)
+                  <div className="animate-fade-up absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-xl z-50 overflow-hidden">
+                    <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                        Updates {unreadCount > 0 ? `· ${unreadCount} new` : ""}
                       </span>
                       {unreadCount > 0 && (
                         <button
                           type="button"
                           onClick={() => void handleMarkAllRead()}
-                          className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+                          className="text-xs font-semibold text-[var(--accent-signal)] hover:underline"
                         >
                           Mark all read
                         </button>
                       )}
                     </div>
-                    <div className="max-h-80 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
+                    <div className="max-h-80 overflow-y-auto divide-y divide-[var(--border-subtle)]">
                       {activeNotifications.length === 0 ? (
-                        <div className="px-4 py-8 text-center text-xs text-zinc-500">
-                          No notifications yet.
+                        <div className="px-4 py-8 text-center text-xs text-[var(--text-muted)]">
+                          All caught up. Ride alerts show up here.
                         </div>
                       ) : (
                         activeNotifications.map((item) => (
@@ -278,21 +311,19 @@ export function AppShell({ children }: AppShellProps) {
                             key={item.id}
                             type="button"
                             onClick={() => void handleNotificationClick(item)}
-                            className={`w-full text-left px-3.5 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/70 transition-colors ${
-                              !item.read
-                                ? "bg-emerald-50/50 dark:bg-emerald-950/20"
-                                : ""
+                            className={`w-full text-left px-4 py-3 hover:bg-[var(--bg-subtle)] transition-colors ${
+                              !item.read ? "bg-[var(--accent-signal)]/[0.06]" : ""
                             }`}
                           >
                             <div className="flex items-start justify-between gap-2">
-                              <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                              <p className="text-xs font-bold text-[var(--text-ink)]">
                                 {item.title}
                               </p>
                               {!item.read && (
-                                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[var(--accent-signal)]" />
                               )}
                             </div>
-                            <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2">
+                            <p className="mt-0.5 text-xs text-[var(--text-muted)] line-clamp-2">
                               {item.body}
                             </p>
                           </button>
@@ -311,29 +342,47 @@ export function AppShell({ children }: AppShellProps) {
                 setTheme(resolvedTheme === "dark" ? "light" : "dark")
               }
               aria-label="Toggle color theme"
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+              className="btn-press flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-subtle)]"
             >
               {mounted && resolvedTheme === "dark" ? (
                 <Sun className="h-4 w-4 text-amber-400" />
               ) : (
-                <Moon className="h-4 w-4 text-zinc-700" />
+                <Moon className="h-4 w-4 text-[var(--text-ink)]" />
               )}
             </button>
 
-            {/* Auth Button */}
+            {/* User Avatar Pill + Sign Out / Sign In */}
             {user ? (
-              <button
-                type="button"
-                onClick={() => void handleLogout()}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Sign out</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <Link
+                  href="/profile"
+                  className={`btn-press flex items-center gap-2 rounded-full border pl-1 pr-3 py-1 text-xs font-semibold ${
+                    isActive("/profile")
+                      ? "border-[var(--accent-signal)] bg-[var(--accent-signal)]/10 text-[var(--text-ink)]"
+                      : "border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-subtle)]"
+                  }`}
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--text-ink)] text-[11px] font-bold text-[var(--bg-surface)]">
+                    {getInitials(user.fullName)}
+                  </span>
+                  <span className="hidden sm:inline max-w-[110px] truncate">
+                    {user.fullName.split(" ")[0]}
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  aria-label="Sign out"
+                  title="Sign out"
+                  className="btn-press flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-rose-600 hover:bg-[var(--bg-subtle)]"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
+              </div>
             ) : (
               <Link
                 href="/login"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-emerald-500 dark:text-zinc-950 dark:hover:bg-emerald-400 transition-colors"
+                className="btn-press inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-signal)] px-4 py-2 text-xs font-bold text-white hover:bg-[var(--accent-signal-hover)] shadow-xs"
               >
                 <LogIn className="h-3.5 w-3.5" />
                 Sign in
@@ -344,31 +393,37 @@ export function AppShell({ children }: AppShellProps) {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 mx-auto w-full max-w-6xl px-4 py-6 pb-24 md:pb-10">
+      <main className="flex-1 mx-auto w-full max-w-6xl px-4 sm:px-6 py-6 sm:py-8 pb-24 md:pb-12">
         {children}
       </main>
 
-      {/* Mobile Bottom Navigation */}
+      {/* Compact Thumb-Friendly Mobile Bottom Navigation */}
       <nav
         aria-label="Mobile navigation"
-        className="fixed bottom-0 inset-x-0 z-40 border-t border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md md:hidden"
+        className="fixed bottom-0 inset-x-0 z-40 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)]/95 backdrop-blur-md md:hidden"
       >
-        <div className="grid grid-cols-5 h-16">
-          {NAV_ITEMS.map((item) => {
+        <div className="grid grid-cols-4 h-16 max-w-md mx-auto">
+          {MOBILE_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors ${
+                className={`btn-press flex flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
                   active
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-zinc-500 dark:text-zinc-400"
+                    ? "text-[var(--accent-signal)]"
+                    : "text-[var(--text-muted)]"
                 }`}
               >
-                <Icon className="h-5 w-5" />
-                <span>{item.mobileLabel}</span>
+                <span
+                  className={`flex h-7 w-11 items-center justify-center rounded-full transition-colors ${
+                    active ? "bg-[var(--accent-signal)]/12" : ""
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span>{item.label}</span>
               </Link>
             );
           })}

@@ -66,33 +66,35 @@ export default function RegisterPage() {
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
-        setError(data.error ?? "Invalid OTP");
+        setError(data.error ?? "Invalid verification code");
         return;
       }
       router.push("/profile");
       router.refresh();
     } catch {
-      setError("Network error while verifying OTP.");
+      setError("Network error while verifying code.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="mx-auto max-w-md">
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 sm:p-8 space-y-6">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+    <div className="mx-auto max-w-md animate-fade-up">
+      <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 sm:p-8 space-y-6 shadow-xs">
+        <div className="space-y-1.5">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--verified-green)]/12 px-2.5 py-0.5 text-xs font-bold text-[var(--verified-green)]">
             <ShieldCheck className="h-3.5 w-3.5" />
-            Verified Student Onboarding
+            Verified campus rides
           </div>
-          <h1 className="text-2xl font-bold tracking-tight pt-1">
-            {step === "FORM" ? "Create your student account" : "Verify your college email"}
+          <h1 className="text-2xl font-extrabold tracking-[-0.03em] pt-1">
+            {step === "FORM"
+              ? "Join your campus network"
+              : "Confirm your campus email"}
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="text-sm text-[var(--text-muted)]">
             {step === "FORM"
               ? "Approved domains: rvce.edu.in, college.edu.in"
-              : `Enter the 6-digit code sent to ${email}`}
+              : `Enter the 6-digit code for ${email}`}
           </p>
         </div>
 
@@ -105,8 +107,8 @@ export default function RegisterPage() {
 
         {step === "FORM" ? (
           <form onSubmit={handleRegister} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 Full Name
               </label>
               <input
@@ -115,12 +117,12 @@ export default function RegisterPage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="e.g., Kavya Menon"
-                className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3.5 py-2.5 text-sm outline-none focus:border-emerald-500"
+                className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent-signal)] focus:bg-[var(--bg-surface)]"
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 College Email
               </label>
               <input
@@ -129,13 +131,13 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="kavya@rvce.edu.in"
-                className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3.5 py-2.5 text-sm outline-none focus:border-emerald-500"
+                className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent-signal)] focus:bg-[var(--bg-surface)]"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                   Gender
                 </label>
                 <select
@@ -143,7 +145,7 @@ export default function RegisterPage() {
                   onChange={(e) =>
                     setGender(e.target.value as "MALE" | "FEMALE" | "OTHER")
                   }
-                  className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+                  className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-3 py-2.5 text-sm outline-none focus:border-[var(--accent-signal)] focus:bg-[var(--bg-surface)]"
                 >
                   <option value="FEMALE">Female</option>
                   <option value="MALE">Male</option>
@@ -151,8 +153,8 @@ export default function RegisterPage() {
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                   USN / College ID
                 </label>
                 <input
@@ -160,13 +162,13 @@ export default function RegisterPage() {
                   value={collegeIdNumber}
                   onChange={(e) => setCollegeIdNumber(e.target.value)}
                   placeholder="1RV23CS045"
-                  className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+                  className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-[var(--accent-signal)] focus:bg-[var(--bg-surface)]"
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 Phone (Optional)
               </label>
               <input
@@ -174,13 +176,13 @@ export default function RegisterPage() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+91 98450 12345"
-                className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3.5 py-2.5 text-sm outline-none focus:border-emerald-500"
+                className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-3.5 py-2.5 font-mono text-sm outline-none focus:border-[var(--accent-signal)] focus:bg-[var(--bg-surface)]"
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                Password (min 8 chars)
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Password (8+ characters)
               </label>
               <input
                 type="password"
@@ -189,30 +191,29 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3.5 py-2.5 text-sm outline-none focus:border-emerald-500"
+                className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-3.5 py-2.5 text-sm outline-none focus:border-[var(--accent-signal)] focus:bg-[var(--bg-surface)]"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-emerald-500 dark:text-zinc-950 dark:hover:bg-emerald-400 disabled:opacity-50"
+              className="btn-press flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent-signal)] px-4 py-3 text-sm font-bold text-white hover:bg-[var(--accent-signal-hover)] disabled:opacity-50 shadow-xs"
             >
               <UserPlus className="h-4 w-4" />
-              {loading ? "Creating account..." : "Send Mock Verification OTP"}
+              {loading ? "Creating account…" : "Get Instant Campus Code"}
             </button>
           </form>
         ) : (
           <form onSubmit={handleVerifyOtp} className="space-y-4">
             {demoOtp && (
-              <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 space-y-1 text-xs text-emerald-800 dark:text-emerald-300">
-                <p className="font-semibold flex items-center gap-1.5">
+              <div className="rounded-xl border border-[var(--verified-green)]/30 bg-[var(--verified-green)]/10 p-4 space-y-1.5 text-xs">
+                <p className="font-bold text-[var(--verified-green)] flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4" />
-                  Demo OTP Toast — Instant Verification
+                  Instant campus code ready
                 </p>
-                <p>
-                  Zero-cost demo mode displays your 6-digit college email OTP
-                  here:{" "}
+                <p className="text-[var(--text-ink)]">
+                  Enter this 6-digit code to verify your email:{" "}
                   <strong className="font-mono text-base tracking-widest">
                     {demoOtp}
                   </strong>
@@ -220,16 +221,16 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => setOtpInput(demoOtp)}
-                  className="mt-1 inline-block font-semibold underline"
+                  className="inline-block font-bold text-[var(--accent-signal)] hover:underline"
                 >
-                  Auto-fill OTP
+                  Auto-fill code
                 </button>
               </div>
             )}
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                6-Digit OTP Code
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                6-Digit Campus Code
               </label>
               <input
                 type="text"
@@ -238,25 +239,25 @@ export default function RegisterPage() {
                 value={otpInput}
                 onChange={(e) => setOtpInput(e.target.value)}
                 placeholder="000000"
-                className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3.5 py-3 text-center font-mono text-xl tracking-[0.35em] outline-none focus:border-emerald-500"
+                className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] px-3.5 py-3 text-center font-mono text-xl tracking-[0.35em] outline-none focus:border-[var(--accent-signal)]"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+              className="btn-press w-full rounded-xl bg-[var(--accent-signal)] px-4 py-3 text-sm font-bold text-white hover:bg-[var(--accent-signal-hover)] disabled:opacity-50"
             >
-              {loading ? "Verifying..." : "Verify & Continue"}
+              {loading ? "Verifying…" : "Verify & Continue"}
             </button>
           </form>
         )}
 
-        <p className="text-center text-xs text-zinc-500">
+        <p className="text-center text-xs text-[var(--text-muted)]">
           Already registered?{" "}
           <Link
             href="/login"
-            className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+            className="font-bold text-[var(--accent-signal)] hover:underline"
           >
             Sign in
           </Link>

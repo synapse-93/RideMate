@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -11,7 +17,7 @@ import {
   CheckCircle2,
   Clock,
   Flag,
-  IndianRupee,
+  Fuel,
   MapPin,
   MessageSquare,
   Navigation,
@@ -129,6 +135,10 @@ interface SessionUser {
   gender: "MALE" | "FEMALE" | "OTHER";
 }
 
+function shortPlace(label: string): string {
+  return label.split(",")[0]?.trim() || label;
+}
+
 export default function RideDetailPage() {
   const params = useParams<{ id: string }>();
   const rideId = params.id;
@@ -139,34 +149,28 @@ export default function RideDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
-  // Seat Request state
   const [pickup, setPickup] = useState<SelectedLocation | null>(null);
   const [requesting, setRequesting] = useState(false);
 
-  // Simulated Live Tracking state
   const [simProgress, setSimProgress] = useState(0.12);
   const [simRunning, setSimRunning] = useState(true);
 
-  // Chat state (4-second polling)
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatTargetId, setChatTargetId] = useState<string>("");
   const [sendingChat, setSendingChat] = useState(false);
 
-  // Review state
   const [reviewTargetId, setReviewTargetId] = useState<string>("");
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
 
-  // Report state
   const [reportOpen, setReportOpen] = useState(false);
   const [reportTargetId, setReportTargetId] = useState("");
   const [reportReason, setReportReason] = useState("Unsafe driving or behavior");
   const [reportDetails, setReportDetails] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
 
-  // SOS state
   const [triggeringSos, setTriggeringSos] = useState(false);
 
   const reloadRide = useCallback(async () => {
@@ -239,13 +243,14 @@ export default function RideDetailPage() {
     ];
   }, [ride]);
 
-  // Simulated live GPS ticker when ride is IN_PROGRESS
   useEffect(() => {
     if (!ride || ride.status !== "IN_PROGRESS" || !simRunning) {
       return;
     }
     const timer = setInterval(() => {
-      setSimProgress((prev) => (prev >= 0.98 ? 0.05 : Number((prev + 0.03).toFixed(3))));
+      setSimProgress((prev) =>
+        prev >= 0.98 ? 0.05 : Number((prev + 0.03).toFixed(3))
+      );
     }, 1500);
     return () => clearInterval(timer);
   }, [ride, simRunning]);
@@ -257,7 +262,6 @@ export default function RideDetailPage() {
     return interpolateAlongPolyline(polyline, simProgress);
   }, [ride, polyline, simProgress]);
 
-  // 4-second chat polling
   useEffect(() => {
     if (!canParticipateInChat) return;
     let cancelled = false;
@@ -271,7 +275,7 @@ export default function RideDetailPage() {
           setMessages(data.messages ?? []);
         }
       } catch {
-        // Ignore transient poll errors
+        // Ignore transient errors
       }
     }
     void pollMessages();
@@ -300,11 +304,17 @@ export default function RideDetailPage() {
     if (!ride || !me) return [];
     const list: Array<{ id: string; fullName: string }> = [];
     if (ride.driverId !== me.id) {
-      list.push({ id: ride.driverId, fullName: `${ride.driver.fullName} (Driver)` });
+      list.push({
+        id: ride.driverId,
+        fullName: `${ride.driver.fullName} (Driver)`,
+      });
     }
     for (const r of ride.requests) {
       if (r.status === "ACCEPTED" && r.passengerId !== me.id) {
-        list.push({ id: r.passengerId, fullName: `${r.passenger.fullName} (Passenger)` });
+        list.push({
+          id: r.passengerId,
+          fullName: `${r.passenger.fullName} (Rider)`,
+        });
       }
     }
     return list;
@@ -327,7 +337,7 @@ export default function RideDetailPage() {
       setActionNotice(data.error ?? "Status update failed");
       return;
     }
-    setActionNotice(`Ride status updated to ${nextStatus}.`);
+    setActionNotice(`Trip updated to ${nextStatus.replace("_", " ")}.`);
     await reloadRide();
   }
 
@@ -352,7 +362,7 @@ export default function RideDetailPage() {
         setActionNotice(data.error ?? "Could not request seat.");
         return;
       }
-      setActionNotice("Seat request sent to driver!");
+      setActionNotice("Seat request sent to the driver.");
       await reloadRide();
     } finally {
       setRequesting(false);
@@ -414,7 +424,7 @@ export default function RideDetailPage() {
           rideId,
           lat: coords.lat,
           lng: coords.lng,
-          note: "Emergency SOS triggered from active ride screen (Demo Simulation).",
+          note: "Emergency SOS triggered during active trip (Demo Simulation).",
         }),
       });
       const data = (await res.json()) as { error?: string };
@@ -423,7 +433,7 @@ export default function RideDetailPage() {
         return;
       }
       setActionNotice(
-        "Demo SOS alert logged! Ride participants and campus admins have been notified."
+        "SOS alert logged (Demo Simulation). Co-riders and campus admins have been notified."
       );
       await reloadRide();
     } finally {
@@ -461,7 +471,7 @@ export default function RideDetailPage() {
         return;
       }
       setReviewComment("");
-      setActionNotice("Thank you! Your review has updated the user's rating.");
+      setActionNotice("Thanks! Your rating has been saved.");
       await reloadRide();
     } finally {
       setSubmittingReview(false);
@@ -487,7 +497,7 @@ export default function RideDetailPage() {
       if (res.ok) {
         setReportOpen(false);
         setReportDetails("");
-        setActionNotice("Safety report submitted to Campus Admin queue.");
+        setActionNotice("Safety report sent to Campus Admin.");
       }
     } finally {
       setSubmittingReport(false);
@@ -496,8 +506,8 @@ export default function RideDetailPage() {
 
   if (loading) {
     return (
-      <div className="py-12 text-center text-sm text-zinc-500">
-        Loading ride details...
+      <div className="py-12 text-center text-sm text-[var(--text-muted)]">
+        Loading ride pass…
       </div>
     );
   }
@@ -508,7 +518,7 @@ export default function RideDetailPage() {
         <p className="text-sm text-rose-500">{error ?? "Ride not found."}</p>
         <Link
           href="/find"
-          className="inline-block text-xs font-semibold text-emerald-600 underline"
+          className="inline-block text-xs font-bold text-[var(--accent-signal)] hover:underline"
         >
           Back to Find Ride
         </Link>
@@ -528,7 +538,7 @@ export default function RideDetailPage() {
   const activeSosEvents = ride.sosEvents.filter((s) => !s.resolved);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-up">
       {/* Active SOS Alert Banner (Demo Simulation) */}
       {activeSosEvents.map((sos) => (
         <div
@@ -546,26 +556,26 @@ export default function RideDetailPage() {
             <button
               type="button"
               onClick={() => void handleResolveSos(sos.id)}
-              className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-semibold text-white hover:bg-rose-500"
+              className="btn-press rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-500"
             >
               Mark Resolved
             </button>
           </div>
-          <p className="text-xs text-rose-800 dark:text-rose-200">
-            Coordinates logged: ({sos.lat.toFixed(4)}, {sos.lng.toFixed(4)}) at{" "}
-            {new Date(sos.createdAt).toLocaleTimeString("en-IN")} · {sos.note}
+          <p className="text-xs text-rose-800 dark:text-rose-200 font-mono">
+            Location: ({sos.lat.toFixed(4)}, {sos.lng.toFixed(4)}) ·{" "}
+            {new Date(sos.createdAt).toLocaleTimeString("en-IN")}
           </p>
           {sos.user.emergencyContactPhone && (
-            <p className="text-xs font-semibold text-rose-900 dark:text-rose-100">
+            <p className="text-xs font-bold text-rose-900 dark:text-rose-100">
               Emergency Contact: {sos.user.emergencyContactName ?? "Guardian"} —{" "}
-              {sos.user.emergencyContactPhone}
+              <span className="font-mono">{sos.user.emergencyContactPhone}</span>
             </p>
           )}
         </div>
       ))}
 
       {actionNotice && (
-        <div className="flex items-center justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
+        <div className="flex items-center justify-between rounded-2xl border border-[var(--verified-green)]/30 bg-[var(--verified-green)]/10 px-4 py-3 text-sm font-medium text-[var(--verified-green)]">
           <span>{actionNotice}</span>
           <button type="button" onClick={() => setActionNotice(null)}>
             <X className="h-4 w-4" />
@@ -573,21 +583,21 @@ export default function RideDetailPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 sm:p-6 space-y-4">
+      {/* Boarding-Pass Header */}
+      <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-zinc-900 dark:bg-zinc-100 px-3 py-0.5 text-xs font-bold text-white dark:text-zinc-950">
-                {ride.status}
+              <span className="rounded-full bg-[var(--text-ink)] px-3 py-0.5 text-[11px] font-bold uppercase text-[var(--bg-surface)]">
+                {ride.status.replace("_", " ")}
               </span>
               {ride.womenOnly && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/12 px-2.5 py-0.5 text-xs font-bold text-rose-600 dark:text-rose-300">
                   <Shield className="h-3.5 w-3.5" />
                   Women-Only
                 </span>
               )}
-              <span className="text-xs text-zinc-500 flex items-center gap-1">
+              <span className="font-mono text-xs text-[var(--text-muted)] flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" />
                 {new Date(ride.departureTime).toLocaleString("en-IN", {
                   weekday: "short",
@@ -599,55 +609,63 @@ export default function RideDetailPage() {
               </span>
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-              {ride.originLabel.split(",")[0]} → {ride.destLabel.split(",")[0]}
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-[-0.03em]">
+              {shortPlace(ride.originLabel)} → {shortPlace(ride.destLabel)}
             </h1>
 
-            <div className="flex flex-wrap gap-4 text-xs text-zinc-500">
-              <span className="inline-flex items-center gap-1">
-                <Route className="h-3.5 w-3.5 text-emerald-500" />
+            <div className="flex flex-wrap gap-4 text-xs text-[var(--text-muted)]">
+              <span className="inline-flex items-center gap-1 font-mono font-medium">
+                <Route className="h-3.5 w-3.5 text-[var(--accent-signal)]" />
                 {ride.distanceKm} km · {ride.estimatedDurationMin} min
               </span>
-              <span className="inline-flex items-center gap-1">
-                <Users className="h-3.5 w-3.5 text-emerald-500" />
-                {ride.seatsAvailable} of {ride.seatsTotal} seats left
+              <span className="inline-flex items-center gap-1 font-mono">
+                <Users className="h-3.5 w-3.5 text-[var(--accent-signal)]" />
+                {ride.seatsAvailable}/{ride.seatsTotal} seats left
               </span>
               <span className="inline-flex items-center gap-1">
-                <Car className="h-3.5 w-3.5 text-emerald-500" />
+                <Car className="h-3.5 w-3.5 text-[var(--accent-signal)]" />
                 {ride.driver.vehicleModel ?? ride.driver.vehicleType}{" "}
-                {ride.driver.vehiclePlate ? `(${ride.driver.vehiclePlate})` : ""}
+                {ride.driver.vehiclePlate ? (
+                  <span className="font-mono">({ride.driver.vehiclePlate})</span>
+                ) : (
+                  ""
+                )}
               </span>
             </div>
           </div>
 
           <div className="text-left sm:text-right">
-            <p className="text-2xl font-extrabold">
+            <p className="font-mono text-2xl font-extrabold text-[var(--text-ink)]">
               {formatInr(ride.costPerSeatInr)}
-              <span className="text-xs font-normal text-zinc-500"> / seat</span>
+              <span className="font-sans text-xs font-normal text-[var(--text-muted)]">
+                {" "}
+                / seat
+              </span>
             </p>
-            <p className="text-xs text-zinc-500">
-              Est. total fuel: {formatInr(fuelEstimate.totalFuelCostInr)}
+            <p className="font-mono text-xs text-[var(--text-muted)]">
+              Trip fuel est. {formatInr(fuelEstimate.totalFuelCostInr)}
             </p>
           </div>
         </div>
 
         {ride.notes && (
-          <p className="rounded-xl bg-zinc-50 dark:bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800">
-            <strong>Driver Note:</strong> {ride.notes}
+          <p className="rounded-xl bg-[var(--bg-subtle)]/70 px-3.5 py-2.5 text-xs text-[var(--text-ink)] border border-[var(--border-subtle)]">
+            <strong className="text-[var(--text-muted)]">Driver note:</strong>{" "}
+            {ride.notes}
           </p>
         )}
 
-        {/* Driver Lifecycle Controls */}
+        {/* Driver Trip Controls */}
         {isDriver && ride.status !== "COMPLETED" && ride.status !== "CANCELLED" && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 dark:border-zinc-800 pt-4">
-            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mr-2">
+          <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-[var(--border-subtle)] pt-4">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] mr-1">
               Trip Controls:
             </span>
             {ride.status === "OPEN" && (
               <button
                 type="button"
                 onClick={() => void handleStatusTransition("CONFIRMED")}
-                className="rounded-xl bg-sky-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-sky-500"
+                className="btn-press rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] px-3.5 py-2 text-xs font-bold hover:border-[var(--accent-signal)]"
               >
                 Confirm Ride
               </button>
@@ -656,17 +674,17 @@ export default function RideDetailPage() {
               <button
                 type="button"
                 onClick={() => void handleStatusTransition("IN_PROGRESS")}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
+                className="btn-press inline-flex items-center gap-1.5 rounded-xl bg-[var(--accent-signal)] px-3.5 py-2 text-xs font-bold text-white hover:bg-[var(--accent-signal-hover)]"
               >
                 <Play className="h-3.5 w-3.5" />
-                Start Ride (Live GPS Sim)
+                Start Ride
               </button>
             )}
             {ride.status === "IN_PROGRESS" && (
               <button
                 type="button"
                 onClick={() => void handleStatusTransition("COMPLETED")}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-900 dark:bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-white dark:text-zinc-950"
+                className="btn-press inline-flex items-center gap-1.5 rounded-xl bg-[var(--verified-green)] px-3.5 py-2 text-xs font-bold text-white"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Complete Ride
@@ -675,7 +693,7 @@ export default function RideDetailPage() {
             <button
               type="button"
               onClick={() => void handleStatusTransition("CANCELLED")}
-              className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3.5 py-2 text-xs font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-500/20"
+              className="btn-press rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-2 text-xs font-bold text-rose-600 dark:text-rose-300"
             >
               Cancel Ride
             </button>
@@ -683,42 +701,41 @@ export default function RideDetailPage() {
         )}
       </div>
 
-      {/* Map + Live GPS Simulation + SOS */}
+      {/* Map + Tracking + Chat + Right Sidebar */}
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-7 space-y-4">
-          {/* Simulated Live Tracking Telemetry */}
           {ride.status === "IN_PROGRESS" && (
-            <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/5 p-4 space-y-3">
+            <div className="rounded-2xl border border-[var(--accent-signal)]/35 bg-[var(--accent-signal)]/[0.06] p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                <div className="flex items-center gap-2 text-xs font-bold text-[var(--accent-signal)]">
                   <Navigation className="h-4 w-4 animate-pulse" />
-                  Live GPS Tracking
+                  Live Tracking
                   <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800 dark:text-amber-300">
                     Demo Simulation
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-xs font-semibold">
-                  <span>ETA: {etaRemainingMin} min</span>
-                  <span>24 km/h</span>
+                <div className="flex items-center gap-3 font-mono text-xs font-bold">
+                  <span>ETA {etaRemainingMin} min</span>
+                  <span className="text-[var(--text-muted)]">24 km/h</span>
                   <button
                     type="button"
                     onClick={() => setSimRunning((r) => !r)}
-                    className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-2 py-0.5 text-[11px]"
+                    className="btn-press font-sans rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-0.5 text-[11px]"
                   >
                     {simRunning ? "Pause" : "Resume"}
                   </button>
                 </div>
               </div>
-              <div className="h-2 w-full rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+              <div className="h-2 w-full rounded-full bg-[var(--bg-subtle)] overflow-hidden">
                 <div
-                  className="h-full bg-emerald-500 transition-all duration-700"
+                  className="h-full bg-[var(--accent-signal)] transition-all duration-700"
                   style={{ width: `${Math.round(simProgress * 100)}%` }}
                 />
               </div>
-              <div className="flex items-center justify-between text-[11px] text-zinc-500">
-                <span>{Math.round(simProgress * 100)}% along OSRM route</span>
+              <div className="flex items-center justify-between font-mono text-[11px] text-[var(--text-muted)]">
+                <span>{Math.round(simProgress * 100)}% along direct route</span>
                 {liveCoords && (
-                  <span className="font-mono">
+                  <span>
                     {liveCoords.lat.toFixed(4)}, {liveCoords.lng.toFixed(4)}
                   </span>
                 )}
@@ -773,44 +790,44 @@ export default function RideDetailPage() {
 
           {/* Safety & SOS Strip */}
           {canParticipateInChat && ride.status !== "CANCELLED" && (
-            <div className="rounded-2xl border border-rose-500/30 bg-white dark:bg-zinc-900 p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="rounded-2xl border border-rose-500/30 bg-[var(--bg-surface)] p-4 flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-0.5">
                 <p className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
                   <ShieldAlert className="h-4 w-4" />
-                  Emergency Safety & SOS
+                  Emergency SOS
                   <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700 dark:text-amber-300">
                     Demo Simulation
                   </span>
                 </p>
-                <p className="text-xs text-zinc-500">
-                  Logs current simulated GPS coordinates to the DB and notifies
-                  co-riders &amp; campus admins immediately.
+                <p className="text-xs text-[var(--text-muted)]">
+                  Logs your live coordinates and alerts co-riders &amp; campus
+                  admins instantly.
                 </p>
               </div>
               <button
                 type="button"
                 disabled={triggeringSos}
                 onClick={() => void handleTriggerSos()}
-                className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-50 shrink-0"
+                className="btn-press rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-50 shrink-0"
               >
-                {triggeringSos ? "Logging SOS..." : "Trigger SOS Alert"}
+                {triggeringSos ? "Sending SOS…" : "Trigger SOS Alert"}
               </button>
             </div>
           )}
 
-          {/* In-App Chat (4-second polling) */}
+          {/* In-App Chat */}
           {canParticipateInChat && (
-            <section className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 space-y-4">
+            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="font-semibold text-sm flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-emerald-500" />
-                  Ride Chat (Live 4s Sync)
+                <h2 className="font-bold text-sm flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-[var(--accent-signal)]" />
+                  Ride Chat
                 </h2>
                 {isDriver && activeRiders.length > 0 && (
                   <select
                     value={effectiveChatTargetId}
                     onChange={(e) => setChatTargetId(e.target.value)}
-                    className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-2.5 py-1 text-xs"
+                    className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] px-2.5 py-1 text-xs font-medium"
                   >
                     {activeRiders.map((r) => (
                       <option key={r.passengerId} value={r.passengerId}>
@@ -821,10 +838,10 @@ export default function RideDetailPage() {
                 )}
               </div>
 
-              <div className="h-60 overflow-y-auto space-y-2 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-3">
+              <div className="h-60 overflow-y-auto space-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/50 p-3">
                 {messages.length === 0 ? (
-                  <p className="text-center text-xs text-zinc-400 py-16">
-                    No messages yet. Coordinate pickup gate or arrival time here.
+                  <p className="text-center text-xs text-[var(--text-muted)] py-16">
+                    No messages yet. Coordinate pickup gate or timing here.
                   </p>
                 ) : (
                   messages.map((msg) => {
@@ -839,11 +856,11 @@ export default function RideDetailPage() {
                         <div
                           className={`max-w-[82%] rounded-2xl px-3.5 py-2 text-xs ${
                             isMine
-                              ? "bg-zinc-900 text-white dark:bg-emerald-500 dark:text-zinc-950"
-                              : "bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700"
+                              ? "bg-[var(--accent-signal)] text-white"
+                              : "bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-ink)]"
                           }`}
                         >
-                          <p className="text-[10px] opacity-70 font-semibold mb-0.5">
+                          <p className="text-[10px] opacity-75 font-bold mb-0.5">
                             {msg.sender.fullName}
                           </p>
                           <p>{msg.body}</p>
@@ -861,16 +878,18 @@ export default function RideDetailPage() {
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder={
                     effectiveChatTargetId
-                      ? "Message your co-rider..."
-                      : "Waiting for a passenger request before chatting..."
+                      ? "Message your co-rider…"
+                      : "Chat unlocks once a rider requests a seat…"
                   }
                   disabled={!effectiveChatTargetId}
-                  className="flex-1 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3.5 py-2 text-sm outline-none focus:border-emerald-500 disabled:opacity-50"
+                  className="flex-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-3.5 py-2 text-sm outline-none focus:border-[var(--accent-signal)] focus:bg-[var(--bg-surface)] disabled:opacity-50"
                 />
                 <button
                   type="submit"
-                  disabled={sendingChat || !effectiveChatTargetId || !chatInput.trim()}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-950 px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-emerald-500 dark:text-zinc-950 disabled:opacity-50"
+                  disabled={
+                    sendingChat || !effectiveChatTargetId || !chatInput.trim()
+                  }
+                  className="btn-press inline-flex items-center gap-1.5 rounded-xl bg-[var(--accent-signal)] px-4 py-2 text-xs font-bold text-white hover:bg-[var(--accent-signal-hover)] disabled:opacity-50"
                 >
                   <Send className="h-3.5 w-3.5" />
                   Send
@@ -880,26 +899,28 @@ export default function RideDetailPage() {
           )}
         </div>
 
-        {/* Right Column: Driver Card, Seat Booking / Requests, Fuel Split, Reviews & Report */}
+        {/* Right Sidebar */}
         <div className="lg:col-span-5 space-y-5">
           {/* Driver Card */}
-          <section className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 space-y-3">
+          <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-3">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                   Driver
                 </p>
-                <p className="font-bold text-base flex items-center gap-1.5">
+                <p className="font-extrabold text-base flex items-center gap-1.5">
                   {ride.driver.fullName}
                   {ride.driver.idVerificationStatus === "APPROVED" && (
-                    <BadgeCheck className="h-4 w-4 text-emerald-500" />
+                    <BadgeCheck className="h-4 w-4 text-[var(--verified-green)]" />
                   )}
                 </p>
-                <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
+                <p className="text-xs text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
                   <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                  {ride.driver.totalRatings > 0
-                    ? `${ride.driver.avgRating.toFixed(1)} (${ride.driver.totalRatings} reviews)`
-                    : "New campus driver"}
+                  <span className="font-mono">
+                    {ride.driver.totalRatings > 0
+                      ? `${ride.driver.avgRating.toFixed(1)} (${ride.driver.totalRatings} reviews)`
+                      : "New campus driver"}
+                  </span>
                 </p>
               </div>
               {me && !isDriver && (
@@ -909,7 +930,7 @@ export default function RideDetailPage() {
                     setReportTargetId(ride.driverId);
                     setReportOpen((v) => !v);
                   }}
-                  className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 dark:border-zinc-800 px-2.5 py-1 text-[11px] font-medium text-zinc-500 hover:text-rose-600"
+                  className="btn-press inline-flex items-center gap-1 rounded-full border border-[var(--border-subtle)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-muted)] hover:text-rose-600"
                 >
                   <Flag className="h-3 w-3" />
                   Report
@@ -918,26 +939,26 @@ export default function RideDetailPage() {
             </div>
 
             {ride.driver.phone ? (
-              <p className="text-xs flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
-                <Phone className="h-3.5 w-3.5 text-emerald-500" />
+              <p className="font-mono text-xs flex items-center gap-1.5 text-[var(--text-ink)]">
+                <Phone className="h-3.5 w-3.5 text-[var(--verified-green)]" />
                 {ride.driver.phone}
               </p>
             ) : (
-              <p className="text-xs text-zinc-400">
-                Phone hidden by driver privacy setting (use in-app chat).
+              <p className="text-xs text-[var(--text-muted)]">
+                Phone private — coordinate via in-app Ride Chat.
               </p>
             )}
           </section>
 
-          {/* Report Form Drawer */}
+          {/* Report Form */}
           {reportOpen && me && (
             <form
               onSubmit={handleSubmitReport}
-              className="rounded-2xl border border-rose-500/40 bg-rose-500/5 p-5 space-y-3"
+              className="animate-fade-up rounded-2xl border border-rose-500/35 bg-rose-500/[0.06] p-5 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold uppercase text-rose-700 dark:text-rose-300">
-                  Flag User or Ride for Admin Review
+                  Flag for Campus Admin Review
                 </h3>
                 <button type="button" onClick={() => setReportOpen(false)}>
                   <X className="h-4 w-4" />
@@ -946,122 +967,135 @@ export default function RideDetailPage() {
               <select
                 value={reportReason}
                 onChange={(e) => setReportReason(e.target.value)}
-                className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-2 text-xs"
+                className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-xs"
               >
-                <option value="Unsafe driving or behavior">Unsafe driving or behavior</option>
-                <option value="No-show or late cancellation">No-show or late cancellation</option>
-                <option value="Fare overcharging / off-app demand">Fare overcharging / off-app demand</option>
-                <option value="Suspicious identity or profile">Suspicious identity or profile</option>
+                <option value="Unsafe driving or behavior">
+                  Unsafe driving or behavior
+                </option>
+                <option value="No-show or late cancellation">
+                  No-show or late cancellation
+                </option>
+                <option value="Fare overcharging / off-app demand">
+                  Fare overcharging / off-app demand
+                </option>
+                <option value="Suspicious identity or profile">
+                  Suspicious identity or profile
+                </option>
               </select>
               <textarea
                 rows={2}
                 value={reportDetails}
                 onChange={(e) => setReportDetails(e.target.value)}
-                placeholder="Describe what happened..."
-                className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-2 text-xs"
+                placeholder="Share brief details…"
+                className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-xs"
               />
               <button
                 type="submit"
                 disabled={submittingReport}
-                className="w-full rounded-xl bg-rose-600 py-2 text-xs font-semibold text-white hover:bg-rose-500"
+                className="btn-press w-full rounded-xl bg-rose-600 py-2 text-xs font-bold text-white hover:bg-rose-500"
               >
-                {submittingReport ? "Submitting..." : "Submit Report to Admin"}
+                {submittingReport ? "Submitting…" : "Submit Report"}
               </button>
             </form>
           )}
 
-          {/* Passenger Seat Request Form */}
-          {!isDriver && !myRequest && (ride.status === "OPEN" || ride.status === "CONFIRMED") && (
-            <section className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 space-y-4">
-              <h2 className="font-semibold text-sm flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-emerald-500" />
-                Request a Seat
-              </h2>
-              {!me ? (
-                <p className="text-xs text-zinc-500">
-                  <Link
-                    href={`/login?next=/rides/${ride.id}`}
-                    className="font-semibold text-emerald-600 underline"
-                  >
-                    Sign in with your college email
-                  </Link>{" "}
-                  to request a seat on this ride.
-                </p>
-              ) : ride.seatsAvailable < 1 ? (
-                <p className="text-xs text-amber-600 font-medium">
-                  This ride is currently full.
-                </p>
-              ) : (
-                <form onSubmit={handleRequestSeat} className="space-y-3">
-                  <LocationAutocomplete
-                    label="Your Pickup Point (or click the map)"
-                    value={pickup}
-                    onChange={setPickup}
-                    showQuickPicks={false}
-                  />
-                  <button
-                    type="submit"
-                    disabled={requesting || !pickup}
-                    className="w-full rounded-xl bg-zinc-950 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-emerald-500 dark:text-zinc-950 dark:hover:bg-emerald-400 disabled:opacity-50"
-                  >
-                    {requesting
-                      ? "Sending Request..."
-                      : `Request Seat · ${formatInr(ride.costPerSeatInr)}`}
-                  </button>
-                </form>
-              )}
-            </section>
-          )}
+          {/* Seat Request Card */}
+          {!isDriver &&
+            !myRequest &&
+            (ride.status === "OPEN" || ride.status === "CONFIRMED") && (
+              <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-4">
+                <h2 className="font-bold text-sm flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-[var(--accent-signal)]" />
+                  Book a Seat
+                </h2>
+                {!me ? (
+                  <p className="text-xs text-[var(--text-muted)]">
+                    <Link
+                      href={`/login?next=/rides/${ride.id}`}
+                      className="font-bold text-[var(--accent-signal)] hover:underline"
+                    >
+                      Sign in with your college email
+                    </Link>{" "}
+                    to request a seat on this ride.
+                  </p>
+                ) : ride.seatsAvailable < 1 ? (
+                  <p className="text-xs text-amber-600 font-semibold">
+                    All seats on this ride are filled.
+                  </p>
+                ) : (
+                  <form onSubmit={handleRequestSeat} className="space-y-3">
+                    <LocationAutocomplete
+                      label="Your Pickup Point (or tap map)"
+                      value={pickup}
+                      onChange={setPickup}
+                      compact
+                      dotColor="green"
+                    />
+                    <button
+                      type="submit"
+                      disabled={requesting || !pickup}
+                      className="btn-press w-full rounded-xl bg-[var(--accent-signal)] py-3 text-sm font-bold text-white hover:bg-[var(--accent-signal-hover)] disabled:opacity-50"
+                    >
+                      {requesting
+                        ? "Sending Request…"
+                        : `Request Seat · ${formatInr(ride.costPerSeatInr)}`}
+                    </button>
+                  </form>
+                )}
+              </section>
+            )}
 
-          {/* Cost & Payment Summary + Requests Management */}
-          <section className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-sm flex items-center gap-2">
-                <IndianRupee className="h-4 w-4 text-emerald-500" />
-                Seats &amp; Fuel Split Summary
+          {/* Seats & Fair Fuel Split Summary */}
+          <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-bold text-sm flex items-center gap-2">
+                <Fuel className="h-4 w-4 text-[var(--accent-signal)]" />
+                Seats &amp; Fair Fuel Split
               </h2>
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700 dark:text-amber-300">
                 Payment: Demo Simulation
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 p-3 text-xs border border-zinc-100 dark:border-zinc-800">
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-[var(--bg-subtle)]/70 p-3 text-xs border border-[var(--border-subtle)]">
               <div>
-                <p className="text-zinc-500">Total Fuel Est.</p>
-                <p className="font-bold text-sm">
+                <p className="text-[var(--text-muted)]">Trip Fuel Est.</p>
+                <p className="font-mono font-bold text-sm">
                   {formatInr(fuelEstimate.totalFuelCostInr)}
                 </p>
               </div>
               <div>
-                <p className="text-zinc-500">Per-Seat Share</p>
-                <p className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                <p className="text-[var(--text-muted)]">Per-Seat Share</p>
+                <p className="font-mono font-bold text-sm text-[var(--accent-signal)]">
                   {formatInr(ride.costPerSeatInr)}
                 </p>
               </div>
             </div>
 
             {ride.requests.length === 0 ? (
-              <p className="text-xs text-zinc-500">No seat requests yet.</p>
+              <p className="text-xs text-[var(--text-muted)]">
+                No seat requests yet.
+              </p>
             ) : (
               <div className="space-y-3">
                 {ride.requests.map((req) => (
                   <div
                     key={req.id}
-                    className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3.5 space-y-2.5"
+                    className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/40 p-3.5 space-y-2.5"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-xs font-bold flex items-center gap-1">
                           {req.passenger.fullName}
                           {req.passenger.idVerificationStatus === "APPROVED" && (
-                            <BadgeCheck className="h-3.5 w-3.5 text-emerald-500" />
+                            <BadgeCheck className="h-3.5 w-3.5 text-[var(--verified-green)]" />
                           )}
                         </p>
-                        <p className="text-[11px] text-zinc-500 line-clamp-1">
-                          Pickup: {req.pickupLabel}
+                        <p className="text-[11px] text-[var(--text-muted)] truncate">
+                          Pickup: {shortPlace(req.pickupLabel)}
                         </p>
                       </div>
-                      <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-[10px] font-bold uppercase">
+                      <span className="rounded-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-2 py-0.5 text-[10px] font-bold uppercase">
                         {req.status}
                       </span>
                     </div>
@@ -1071,16 +1105,20 @@ export default function RideDetailPage() {
                         <>
                           <button
                             type="button"
-                            onClick={() => void handleRequestAction(req.id, "ACCEPT")}
-                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
+                            onClick={() =>
+                              void handleRequestAction(req.id, "ACCEPT")
+                            }
+                            className="btn-press inline-flex items-center gap-1 rounded-lg bg-[var(--verified-green)] px-3 py-1.5 text-xs font-bold text-white"
                           >
                             <Check className="h-3.5 w-3.5" />
                             Accept Seat
                           </button>
                           <button
                             type="button"
-                            onClick={() => void handleRequestAction(req.id, "REJECT")}
-                            className="inline-flex items-center gap-1 rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400"
+                            onClick={() =>
+                              void handleRequestAction(req.id, "REJECT")
+                            }
+                            className="btn-press inline-flex items-center gap-1 rounded-lg border border-rose-500/35 px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-300"
                           >
                             <X className="h-3.5 w-3.5" />
                             Reject
@@ -1089,12 +1127,15 @@ export default function RideDetailPage() {
                       )}
 
                       {me?.id === req.passengerId &&
-                        (req.status === "PENDING" || req.status === "ACCEPTED") &&
+                        (req.status === "PENDING" ||
+                          req.status === "ACCEPTED") &&
                         ride.status !== "COMPLETED" && (
                           <button
                             type="button"
-                            onClick={() => void handleRequestAction(req.id, "CANCEL")}
-                            className="rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400"
+                            onClick={() =>
+                              void handleRequestAction(req.id, "CANCEL")
+                            }
+                            className="btn-press rounded-lg border border-rose-500/35 px-3 py-1.5 text-xs font-bold text-rose-600 dark:text-rose-300"
                           >
                             Cancel Seat
                           </button>
@@ -1107,10 +1148,10 @@ export default function RideDetailPage() {
                             onClick={() =>
                               void handleRequestAction(req.id, "TOGGLE_PAYMENT")
                             }
-                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                            className={`btn-press rounded-lg px-3 py-1.5 text-xs font-bold ${
                               req.paymentStatus === "SIMULATED_PAID"
-                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                                : "border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                ? "bg-[var(--verified-green)]/12 text-[var(--verified-green)]"
+                                : "border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--accent-signal)]"
                             }`}
                           >
                             {req.paymentStatus === "SIMULATED_PAID"
@@ -1125,10 +1166,10 @@ export default function RideDetailPage() {
             )}
           </section>
 
-          {/* Post-Ride Ratings & Reviews */}
+          {/* Post-Ride Ratings */}
           {ride.status === "COMPLETED" && acceptedCoRiders.length > 0 && (
-            <section className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 space-y-4">
-              <h2 className="font-semibold text-sm flex items-center gap-2">
+            <section className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 space-y-4">
+              <h2 className="font-bold text-sm flex items-center gap-2">
                 <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
                 Rate Your Co-Riders
               </h2>
@@ -1136,7 +1177,7 @@ export default function RideDetailPage() {
                 <select
                   value={effectiveReviewTargetId}
                   onChange={(e) => setReviewTargetId(e.target.value)}
-                  className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs"
+                  className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-medium"
                 >
                   {acceptedCoRiders.map((person) => (
                     <option key={person.id} value={person.id}>
@@ -1151,14 +1192,14 @@ export default function RideDetailPage() {
                       key={star}
                       type="button"
                       onClick={() => setReviewRating(star)}
-                      className="p-1"
+                      className="btn-press p-1"
                       aria-label={`Rate ${star} stars`}
                     >
                       <Star
                         className={`h-6 w-6 ${
                           star <= reviewRating
                             ? "fill-amber-400 text-amber-400"
-                            : "text-zinc-300 dark:text-zinc-700"
+                            : "text-[var(--border-subtle)]"
                         }`}
                       />
                     </button>
@@ -1170,28 +1211,30 @@ export default function RideDetailPage() {
                   value={reviewComment}
                   onChange={(e) => setReviewComment(e.target.value)}
                   placeholder="Punctual, smooth ride, great co-commuter!"
-                  className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs"
+                  className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]/60 px-3 py-2 text-xs outline-none focus:border-[var(--accent-signal)]"
                 />
 
                 <button
                   type="submit"
                   disabled={submittingReview}
-                  className="w-full rounded-xl bg-zinc-950 py-2 text-xs font-semibold text-white dark:bg-emerald-500 dark:text-zinc-950"
+                  className="btn-press w-full rounded-xl bg-[var(--accent-signal)] py-2.5 text-xs font-bold text-white hover:bg-[var(--accent-signal-hover)]"
                 >
-                  {submittingReview ? "Submitting..." : "Submit Rating"}
+                  {submittingReview ? "Saving…" : "Submit Rating"}
                 </button>
               </form>
 
               {ride.reviews.length > 0 && (
-                <div className="space-y-2 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+                <div className="space-y-2 border-t border-dashed border-[var(--border-subtle)] pt-3">
                   {ride.reviews.map((rev) => (
                     <div key={rev.id} className="text-xs space-y-0.5">
-                      <p className="font-semibold">
+                      <p className="font-bold">
                         {rev.author.fullName} → {rev.target.fullName} ·{" "}
-                        {"★".repeat(rev.rating)}
+                        <span className="text-amber-500">
+                          {"★".repeat(rev.rating)}
+                        </span>
                       </p>
                       {rev.comment && (
-                        <p className="text-zinc-500">{rev.comment}</p>
+                        <p className="text-[var(--text-muted)]">{rev.comment}</p>
                       )}
                     </div>
                   ))}

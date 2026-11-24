@@ -1,20 +1,35 @@
 import type { Metadata, Viewport } from "next";
+import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { AppShell } from "@/components/layout/AppShell";
 
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-jakarta",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-jetbrains",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "RideMate — Verified Student Carpooling",
+  title: "RideMate — Verified Campus Carpooling",
   description:
-    "Zero-cost, mobile-first campus carpooling with route matching, transparent INR fuel splits, women-only rides, and built-in safety tools.",
+    "Share daily campus commutes with verified college students. Fair fuel splits, direct routes, and women-only options across Bengaluru.",
   manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+    { media: "(prefers-color-scheme: light)", color: "#F6F4EE" },
+    { media: "(prefers-color-scheme: dark)", color: "#0F1115" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -26,8 +41,12 @@ interface RootLayoutProps {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="antialiased">
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${plusJakartaSans.variable} ${jetbrainsMono.variable}`}
+    >
+      <body className="antialiased selection:bg-[#FF5A26]/20 selection:text-[#141517] dark:selection:text-[#F5F3EE]">
         <ThemeProvider>
           <AppShell>{children}</AppShell>
         </ThemeProvider>

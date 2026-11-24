@@ -2,26 +2,90 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-@layer base {
-  :root {
-    --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-      "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
+:root {
+  --bg-canvas: #F6F4EE;
+  --bg-surface: #FFFFFF;
+  --bg-subtle: #EFECE4;
+  --border-subtle: #E5E0D5;
+  --text-ink: #141517;
+  --text-muted: #64666B;
+  --accent-signal: #FF5A26;
+  --accent-signal-hover: #E54918;
+  --verified-green: #15803D;
+}
 
+.dark {
+  --bg-canvas: #0F1115;
+  --bg-surface: #171A21;
+  --bg-subtle: #1F232C;
+  --border-subtle: #282D38;
+  --text-ink: #F5F3EE;
+  --text-muted: #9499A6;
+  --accent-signal: #FF6B3D;
+  --accent-signal-hover: #FF5A26;
+  --verified-green: #22C55E;
+}
+
+@theme inline {
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
   html,
   body {
+    background-color: var(--bg-canvas);
+    color: var(--text-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* Leaflet map container tweaks for dark/light theme readability */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeUp 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.card-lift {
+  transition: transform 180ms ease-out, border-color 180ms ease-out, box-shadow 180ms ease-out;
+}
+
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px -14px rgba(20, 21, 23, 0.16);
+}
+
+.dark .card-lift:hover {
+  box-shadow: 0 12px 28px -14px rgba(0, 0, 0, 0.55);
+}
+
+.btn-press {
+  transition: transform 150ms ease-out, background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* Leaflet map container overrides */
 .leaflet-container {
   font-family: var(--font-sans);
+  background: var(--bg-subtle);
   z-index: 10;
 }
 
-.dark .leaflet-tile-pane {
-  filter: brightness(0.86) contrast(1.06);
+.leaflet-popup-content-wrapper {
+  border-radius: 14px;
+  box-shadow: 0 10px 25px -8px rgba(0, 0, 0, 0.25);
 }
