@@ -1,0 +1,238 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum IdVerificationStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum VehicleType {
+  TWO_WHEELER
+  CAR
+  NONE
+}
+
+enum RideStatus {
+  OPEN
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  SIMULATED_PAID
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+}
+
+model User {
+  id                    String               @id @default(cuid())
+  email                 String               @unique
+  passwordHash          String
+  fullName              String
+  collegeIdNumber       String?
+  gender                Gender
+  role                  Role                 @default(STUDENT)
+  emailVerified         Boolean              @default(false)
+  otpCode               String?
+  otpExpiresAt          DateTime?
+  idCardUrl             String?
+  idVerificationStatus  IdVerificationStatus @default(NONE)
+  vehicleType           VehicleType          @default(NONE)
+  vehicleModel          String?
+  vehiclePlate          String?
+  showPhonePrivacy      Boolean              @default(false)
+  phone                 String?
+  avgRating             Float                @default(0)
+  totalRatings          Int                  @default(0)
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  ridesOffered     Ride[]         @relation("DriverRides")
+  rideRequests     RideRequest[]  @relation("PassengerRequests")
+  sentMessages     Message[]      @relation("SentMessages")
+  receivedMessages Message[]      @relation("ReceivedMessages")
+  authoredReviews  Review[]       @relation("AuthoredReviews")
+  receivedReviews  Review[]       @relation("ReceivedReviews")
+  filedReports     Report[]       @relation("FiledReports")
+  reportsAgainst   Report[]       @relation("ReportsAgainst")
+  sosEvents        SosEvent[]
+  notifications    Notification[]
+
+  @@index([email])
+  @@index([idVerificationStatus])
+  @@index([role])
+}
+
+model Ride {
+  id                   String     @id @default(cuid())
+  driverId             String
+  originLabel          String
+  originLat            Float
+  originLng            Float
+  destLabel            String
+  destLat              Float
+  destLng              Float
+  routePolyline        String
+  distanceKm           Float
+  estimatedDurationMin Int
+  departureTime        DateTime
+  seatsTotal           Int
+  seatsAvailable       Int
+  costPerSeatInr       Int
+  womenOnly            Boolean    @default(false)
+  status               RideStatus @default(OPEN)
+  notes                String?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  driver    User          @relation("DriverRides", fields: [driverId], references: [id], onDelete: Cascade)
+  requests  RideRequest[]
+  messages  Message[]
+  reviews   Review[]
+  reports   Report[]
+  sosEvents SosEvent[]
+
+  @@index([driverId])
+  @@index([status, departureTime])
+  @@index([womenOnly, status])
+}
+
+model RideRequest {
+  id            String        @id @default(cuid())
+  rideId        String
+  passengerId   String
+  pickupLabel   String
+  pickupLat     Float
+  pickupLng     Float
+  status        RequestStatus @default(PENDING)
+  paymentStatus PaymentStatus @default(UNPAID)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  ride      Ride @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  passenger User @relation("PassengerRequests", fields: [passengerId], references: [id], onDelete: Cascade)
+
+  @@unique([rideId, passengerId])
+  @@index([rideId, status])
+  @@index([passengerId, status])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  rideId     String
+  senderId   String
+  receiverId String
+  body       String
+  createdAt  DateTime @default(now())
+
+  ride     Ride @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([rideId, createdAt])
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rideId    String
+  authorId  String
+  targetId  String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  ride   Ride @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  author User @relation("AuthoredReviews", fields: [authorId], references: [id], onDelete: Cascade)
+  target User @relation("ReceivedReviews", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([rideId, authorId, targetId])
+  @@index([targetId])
+  @@index([rideId])
+}
+
+model Report {
+  id             String       @id @default(cuid())
+  reporterId     String
+  reportedUserId String
+  rideId         String?
+  reason         String
+  details        String?
+  status         ReportStatus @default(OPEN)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  reporter     User  @relation("FiledReports", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser User  @relation("ReportsAgainst", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  ride         Ride? @relation(fields: [rideId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([reportedUserId])
+}
+
+model SosEvent {
+  id        String   @id @default(cuid())
+  rideId    String
+  userId    String
+  lat       Float
+  lng       Float
+  note      String?
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ride Ride @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([rideId, createdAt])
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  linkUrl   String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+}
